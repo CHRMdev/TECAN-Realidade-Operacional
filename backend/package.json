@@ -1,0 +1,33 @@
+{
+  "name": "tecan-backend",
+  "version": "1.0.0",
+  "scripts": {
+    "dev": "nodemon --watch src --ext ts --exec tsx src/server.ts",
+    "build": "tsc && npx prisma generate",
+    "start": "npx prisma migrate deploy && node dist/server.js",
+    "db:migrate": "npx prisma migrate dev",
+    "db:studio": "npx prisma studio",
+    "db:reset": "npx prisma migrate reset --force"
+  },
+  "dependencies": {
+    "@fastify/cors": "^8.5.0",
+    "@fastify/jwt": "^8.0.1",
+    "@prisma/client": "^5.22.0",
+    "bcrypt": "^5.1.1",
+    "date-fns": "^3.6.0",
+    "dotenv": "^16.4.5",
+    "fastify": "^4.28.1",
+    "pdfkit": "^0.15.0",
+    "xlsx": "^0.18.5",
+    "zod": "^3.23.8"
+  },
+  "devDependencies": {
+    "@types/bcrypt": "^5.0.2",
+    "@types/node": "^20.16.5",
+    "@types/pdfkit": "^0.13.9",
+    "nodemon": "^3.1.4",
+    "prisma": "^5.22.0",
+    "tsx": "^4.19.1",
+    "typescript": "^5.5.4"
+  }
+}

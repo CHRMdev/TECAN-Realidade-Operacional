@@ -1,0 +1,78 @@
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+model User {
+  id           String   @id @default(cuid())
+  firstName    String
+  lastName     String
+  username     String   @unique
+  passwordHash String
+  createdAt    DateTime @default(now())
+  quebras           Quebra[]
+  entregas          Entrega[]
+  laminasProduzidas LaminaProduzida[]
+  saidasVoo         SaidaVoo[]
+  @@index([username])
+}
+
+model Quebra {
+  id           String   @id @default(cuid())
+  userId       String
+  user         User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  shift        String
+  flightNumber String
+  uldNumber    String
+  createdAt    DateTime @default(now())
+  @@index([userId])
+  @@index([createdAt])
+}
+
+model Entrega {
+  id           String   @id @default(cuid())
+  userId       String
+  user         User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  shift        String
+  deliveryType String
+  uldNumber    String?
+  awbs         AWB[]
+  createdAt    DateTime @default(now())
+  @@index([userId])
+  @@index([createdAt])
+}
+
+model AWB {
+  id        String  @id @default(cuid())
+  entregaId String
+  entrega   Entrega @relation(fields: [entregaId], references: [id], onDelete: Cascade)
+  awbNumber String
+  @@index([entregaId])
+}
+
+model LaminaProduzida {
+  id         String   @id @default(cuid())
+  userId     String
+  user       User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  shift      String
+  uldNumber  String
+  clientName String
+  createdAt  DateTime @default(now())
+  @@index([userId])
+  @@index([createdAt])
+}
+
+model SaidaVoo {
+  id           String   @id @default(cuid())
+  userId       String
+  user         User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  shift        String
+  flightNumber String
+  createdAt    DateTime @default(now())
+  @@index([userId])
+  @@index([createdAt])
+}

@@ -1,0 +1,23 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(echo $TMPDIR)",
+      "Read(//c/tmp/**)",
+      "Bash(python3:*)",
+      "Bash(node:*)",
+      "Bash(printf '%s\\\\n' \"# Briefing — Arquiteto das Sombras \\(Backend\\)\" \"Projeto: Realidade Operacional TECAN | Data: 2026-04-09\" \"\" \"## Missao\" \"Implementar o backend completo do sistema TECAN.\" \"Ao terminar, escreva /tmp/backend-status.md com resultado de cada teste.\" \"\" \"## Localizacao do projeto\" \"C:/Users/caiom/OneDrive/Documentos/Realidade Operacional - TECAN/backend/\" \"Diretorio backend/ nao existe ainda - crie do zero.\" \"\" \"## Projeto de Referencia \\(padroes a copiar\\)\" \"C:/Users/caiom/OneDrive/Documentos/Login-Credentials-API/backend/\" \"\" \"Copie os padroes exatos de:\" \"- server.ts \\(bootstrap, plugins, decorators\\)\" \"- middleware/auth.ts \\(authenticate preHandler\\)\" \"- middleware/errorHandler.ts \\(Zod + Fastify + Prisma errors\\)\" \"- services/authService.ts \\(generateTokens, registerUser, loginUser, refreshTokens\\)\" \"\" \"DIFERENCA PRINCIPAL: TECAN usa username \\(nao email\\) para login/register.\" \"\" \"## Contrato de API\" \"Leia /tmp/api-contract.md — implemente EXATAMENTE como especificado.\" \"\" \"## Stack\" \"Node.js + TypeScript + Fastify 4.x + Prisma 5.x + SQLite + JWT + Zod + bcrypt + xlsx + pdfkit\")",
+      "Bash(/tmp/briefing-backend.md:*)",
+      "Bash(curl:*)",
+      "Bash(TOKEN=\"eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJ1c2VySWQiOiJjbW5zNjJxcjYwMDAwNGg3Zzk2bWZkcnRyIiwidXNlcm5hbWUiOiJjYWlvLmhlbnJpcXVlIiwidHlwZSI6ImFjY2VzcyIsImlhdCI6MTc3NTc4MTM2MywiZXhwIjoxNzc1NzgyMjYzfQ.A8TbUIh8-fM85oO7zYmIVkVkZ-SCdXEMorgOh-FvN1E\")",
+      "Bash(__NEW_LINE_a3efbe74aa5b0325__ echo:*)",
+      "Bash(__NEW_LINE_38aed650673bbff7__ echo:*)",
+      "Bash(__NEW_LINE_85f9c84d9ed0add0__ echo:*)",
+      "Bash(__NEW_LINE_794122add64f184a__ echo:*)",
+      "Bash(__NEW_LINE_a3621f94da22fa17__ echo:*)",
+      "Bash(__NEW_LINE_a4b5c14aa53cea12__ echo:*)",
+      "Bash(/tmp/briefing-frontend.md:*)",
+      "Bash(cd /c/Users/caiom/OneDrive/Documentos/Realidade Operacional - TECAN/frontend)",
+      "Bash(npx tsc:*)"
+    ]
+  }
+}
