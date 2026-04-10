@@ -30,7 +30,7 @@ export function generateTokens(
 
   const token = app.jwt.sign(accessPayload, { expiresIn: JWT_EXPIRES_IN });
   const refreshToken = jwt.sign(refreshPayload, JWT_REFRESH_SECRET, {
-    expiresIn: JWT_REFRESH_EXPIRES_IN,
+    expiresIn: JWT_REFRESH_EXPIRES_IN as any,
   });
 
   return { token, refreshToken };
