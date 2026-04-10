@@ -4,7 +4,7 @@
   "scripts": {
     "dev": "nodemon --watch src --ext ts --exec tsx src/server.ts",
     "build": "tsc && npx prisma generate",
-    "start": "npx prisma migrate deploy && node dist/server.js",
+    "start": "npx prisma db push && node dist/server.js",
     "db:migrate": "npx prisma migrate dev",
     "db:studio": "npx prisma studio",
     "db:reset": "npx prisma migrate reset --force"
