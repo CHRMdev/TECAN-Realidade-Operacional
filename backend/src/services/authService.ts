@@ -1,5 +1,6 @@
 import { PrismaClient } from '@prisma/client';
 import bcrypt from 'bcrypt';
+import jwt from 'jsonwebtoken';
 import { FastifyInstance } from 'fastify';
 import { JwtPayload } from '../types';
 
@@ -28,8 +29,7 @@ export function generateTokens(
   const refreshPayload: JwtPayload = { userId, username, type: 'refresh' };
 
   const token = app.jwt.sign(accessPayload, { expiresIn: JWT_EXPIRES_IN });
-  const refreshToken = app.jwt.sign(refreshPayload, {
-    secret: JWT_REFRESH_SECRET,
+  const refreshToken = jwt.sign(refreshPayload, JWT_REFRESH_SECRET, {
     expiresIn: JWT_REFRESH_EXPIRES_IN,
   });
 
@@ -105,9 +105,7 @@ export function refreshTokens(
   refreshToken: string
 ): { token: string; refreshToken: string } {
   try {
-    const payload = app.jwt.verify<JwtPayload>(refreshToken, {
-      secret: JWT_REFRESH_SECRET,
-    });
+    const payload = jwt.verify(refreshToken, JWT_REFRESH_SECRET) as JwtPayload;
 
     if (payload.type !== 'refresh') {
       const error = new Error('Tipo de token inválido') as any;
