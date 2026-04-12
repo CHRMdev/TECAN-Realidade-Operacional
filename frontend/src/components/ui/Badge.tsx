@@ -1,26 +1,34 @@
-import { clsx } from 'clsx';
-
 interface BadgeProps {
   children: React.ReactNode;
-  variant?: 'blue' | 'green' | 'orange' | 'red' | 'purple' | 'slate';
+  variant?: 'info' | 'success' | 'warning' | 'danger' | 'sage' | 'default';
   className?: string;
 }
 
-export function Badge({ children, variant = 'blue', className }: BadgeProps) {
+const variantStyles: Record<string, { bg: string; color: string }> = {
+  info:    { bg: '#1a78d420', color: '#60a5fa' },
+  success: { bg: '#10b98120', color: '#34d399' },
+  warning: { bg: '#f59e0b20', color: '#fbbf24' },
+  danger:  { bg: '#ef444420', color: '#f87171' },
+  sage:    { bg: '#6b9e8f20', color: '#6b9e8f' },
+  default: { bg: '#1e335580', color: '#7a9bc4' },
+};
+
+export function Badge({ children, variant = 'info', className }: BadgeProps) {
+  const s = variantStyles[variant] ?? variantStyles.default;
   return (
     <span
-      className={clsx(
-        'inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-semibold',
-        {
-          'bg-blue-500/20 text-blue-300': variant === 'blue',
-          'bg-green-500/20 text-green-300': variant === 'green',
-          'bg-orange-500/20 text-orange-300': variant === 'orange',
-          'bg-red-500/20 text-red-300': variant === 'red',
-          'bg-purple-500/20 text-purple-300': variant === 'purple',
-          'bg-slate-500/20 text-slate-300': variant === 'slate',
-        },
-        className
-      )}
+      className={className}
+      style={{
+        display: 'inline-flex',
+        alignItems: 'center',
+        borderRadius: '9999px',
+        padding: '2px 10px',
+        fontSize: '11px',
+        fontWeight: 600,
+        backgroundColor: s.bg,
+        color: s.color,
+        letterSpacing: '0.02em',
+      }}
     >
       {children}
     </span>

@@ -1,11 +1,25 @@
 import { type ButtonHTMLAttributes } from 'react';
-import { clsx } from 'clsx';
 
 interface ButtonProps extends ButtonHTMLAttributes<HTMLButtonElement> {
-  variant?: 'primary' | 'secondary' | 'ghost' | 'danger';
+  variant?: 'primary' | 'secondary' | 'ghost' | 'danger' | 'success' | 'warning';
   size?: 'sm' | 'md' | 'lg';
   loading?: boolean;
 }
+
+const variants: Record<string, { bg: string; color: string; border: string; hover: string }> = {
+  primary:   { bg: '#1a78d4', color: '#fff', border: '#1a78d4', hover: '#1566b8' },
+  secondary: { bg: '#162543', color: '#60a5fa', border: '#1e3355', hover: '#1a2e4a' },
+  ghost:     { bg: 'transparent', color: '#60a5fa', border: 'transparent', hover: '#162543' },
+  danger:    { bg: '#ef4444', color: '#fff', border: '#ef4444', hover: '#dc2626' },
+  success:   { bg: '#10b981', color: '#fff', border: '#10b981', hover: '#059669' },
+  warning:   { bg: '#f59e0b', color: '#0b1628', border: '#f59e0b', hover: '#d97706' },
+};
+
+const sizes: Record<string, { padding: string; fontSize: string }> = {
+  sm: { padding: '6px 12px', fontSize: '12px' },
+  md: { padding: '8px 16px', fontSize: '13px' },
+  lg: { padding: '11px 20px', fontSize: '15px' },
+};
 
 export function Button({
   variant = 'primary',
@@ -14,28 +28,49 @@ export function Button({
   disabled,
   children,
   className,
+  style,
+  onMouseEnter,
+  onMouseLeave,
   ...props
 }: ButtonProps) {
+  const v = variants[variant];
+  const s = sizes[size];
+  const isDisabled = disabled || loading;
+
   return (
     <button
-      disabled={disabled || loading}
-      className={clsx(
-        'inline-flex items-center justify-center gap-2 rounded-lg font-medium transition-all duration-200 cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed',
-        {
-          'bg-blue-500 text-white hover:bg-blue-600 active:scale-95': variant === 'primary',
-          'bg-slate-700 text-slate-100 hover:bg-slate-600': variant === 'secondary',
-          'text-slate-300 hover:text-white hover:bg-slate-700': variant === 'ghost',
-          'bg-red-600 text-white hover:bg-red-700': variant === 'danger',
-          'px-3 py-1.5 text-sm': size === 'sm',
-          'px-4 py-2 text-sm': size === 'md',
-          'px-5 py-2.5 text-base': size === 'lg',
-        },
-        className
-      )}
+      disabled={isDisabled}
+      style={{
+        display: 'inline-flex',
+        alignItems: 'center',
+        justifyContent: 'center',
+        gap: '6px',
+        borderRadius: '8px',
+        fontWeight: 600,
+        cursor: isDisabled ? 'not-allowed' : 'pointer',
+        opacity: isDisabled ? 0.5 : 1,
+        backgroundColor: v.bg,
+        color: v.color,
+        border: `1px solid ${v.border}`,
+        padding: s.padding,
+        fontSize: s.fontSize,
+        transition: 'all 0.15s ease',
+        userSelect: 'none',
+        ...style,
+      }}
+      onMouseEnter={(e) => {
+        if (!isDisabled) e.currentTarget.style.backgroundColor = v.hover;
+        onMouseEnter?.(e);
+      }}
+      onMouseLeave={(e) => {
+        if (!isDisabled) e.currentTarget.style.backgroundColor = v.bg;
+        onMouseLeave?.(e);
+      }}
+      className={className}
       {...props}
     >
       {loading && (
-        <svg className="animate-spin h-4 w-4" fill="none" viewBox="0 0 24 24">
+        <svg className="animate-spin" style={{ width: 14, height: 14 }} fill="none" viewBox="0 0 24 24">
           <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
           <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
         </svg>

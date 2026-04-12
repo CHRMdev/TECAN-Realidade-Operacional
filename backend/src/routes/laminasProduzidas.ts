@@ -1,17 +1,17 @@
 import { FastifyInstance } from 'fastify';
 import { z } from 'zod';
 import { authenticate } from '../middleware/auth';
-import { getCurrentShift } from '../services/shiftService';
 
 const createSchema = z.object({
   uldNumber: z.string().min(1),
   clientName: z.string().min(1),
+  shift: z.enum(['A', 'B', 'C']),
 });
 
 export async function laminasProduzidasRoutes(app: FastifyInstance) {
   app.post('/laminas-produzidas', { preHandler: authenticate }, async (request, reply) => {
     const body = createSchema.parse(request.body);
-    const shift = getCurrentShift();
+    const shift = body.shift;
 
     const lamina = await app.prisma.laminaProduzida.create({
       data: {

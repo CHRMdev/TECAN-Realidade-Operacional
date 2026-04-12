@@ -1,24 +1,72 @@
 @import "tailwindcss";
 
+@theme {
+  /* === DARK THEME — Azul Cargo Express === */
+
+  /* Backgrounds */
+  --color-bg-page:     #0b1628;
+  --color-bg-surface:  #111e35;
+  --color-bg-elevated: #162543;
+  --color-bg-input:    #0d1a30;
+  --color-bg-hover:    #1a2e4a;
+
+  /* Borders */
+  --color-border:      #1e3355;
+  --color-border-subtle: #162040;
+
+  /* Brand — Azul Cargo Express */
+  --color-cargo-primary: #005eb8;
+  --color-cargo-btn:     #1a78d4;
+  --color-cargo-light:   #60a5fa;
+  --color-cargo-dark:    #004494;
+
+  /* Text */
+  --color-text-primary:   #e2eafc;
+  --color-text-secondary: #7a9bc4;
+  --color-text-muted:     #4a6485;
+
+  /* Accents */
+  --color-accent-terracotta: #e07050;
+  --color-accent-amber:      #f59e0b;
+  --color-accent-sage:       #6b9e8f;
+
+  /* Semantic */
+  --color-semantic-success: #10b981;
+  --color-semantic-warning: #f59e0b;
+  --color-semantic-danger:  #ef4444;
+  --color-semantic-info:    #60a5fa;
+
+  /* Aliases usados nos componentes */
+  --color-warm-cream: #0b1628;
+  --color-warm-light: #111e35;
+  --color-warm-dark:  #1e3355;
+}
+
 @layer base {
-  :root {
-    --color-primary: #1e3a5f;
-    --color-accent: #3b82f6;
-    --color-bg: #0f172a;
-    --color-surface: #1e293b;
-    --color-surface-hover: #334155;
-    --color-border: #334155;
-    --color-text: #f1f5f9;
-    --color-text-muted: #94a3b8;
-  }
-
   body {
-    @apply bg-[#0f172a] text-[#f1f5f9] antialiased;
+    background-color: #0b1628;
+    color: #e2eafc;
     font-family: 'Inter', system-ui, -apple-system, sans-serif;
+    -webkit-font-smoothing: antialiased;
     margin: 0;
+    font-size: 16px;
+    line-height: 1.5;
   }
 
-  * {
-    box-sizing: border-box;
+  * { box-sizing: border-box; }
+
+  :focus-visible {
+    outline: 2px solid #1a78d4;
+    outline-offset: 2px;
   }
+
+  button, a, input, select, textarea {
+    transition: all 0.15s ease;
+  }
+
+  /* Scrollbar dark */
+  ::-webkit-scrollbar { width: 6px; height: 6px; }
+  ::-webkit-scrollbar-track { background: #0b1628; }
+  ::-webkit-scrollbar-thumb { background: #1e3355; border-radius: 3px; }
+  ::-webkit-scrollbar-thumb:hover { background: #1a78d4; }
 }

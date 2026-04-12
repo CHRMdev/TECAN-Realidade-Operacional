@@ -1,17 +1,17 @@
 import { FastifyInstance } from 'fastify';
 import { z } from 'zod';
 import { authenticate } from '../middleware/auth';
-import { getCurrentShift } from '../services/shiftService';
 
 const createSchema = z.object({
   flightNumber: z.string().min(1),
   uldNumber: z.string().min(1),
+  shift: z.enum(['A', 'B', 'C']),
 });
 
 export async function quebrasRoutes(app: FastifyInstance) {
   app.post('/quebras', { preHandler: authenticate }, async (request, reply) => {
     const body = createSchema.parse(request.body);
-    const shift = getCurrentShift();
+    const shift = body.shift;
 
     const quebra = await app.prisma.quebra.create({
       data: {

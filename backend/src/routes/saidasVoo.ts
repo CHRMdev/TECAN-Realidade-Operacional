@@ -1,16 +1,16 @@
 import { FastifyInstance } from 'fastify';
 import { z } from 'zod';
 import { authenticate } from '../middleware/auth';
-import { getCurrentShift } from '../services/shiftService';
 
 const createSchema = z.object({
   flightNumber: z.string().min(1),
+  shift: z.enum(['A', 'B', 'C']),
 });
 
 export async function saidasVooRoutes(app: FastifyInstance) {
   app.post('/saidas-voo', { preHandler: authenticate }, async (request, reply) => {
     const body = createSchema.parse(request.body);
-    const shift = getCurrentShift();
+    const shift = body.shift;
 
     const saida = await app.prisma.saidaVoo.create({
       data: {

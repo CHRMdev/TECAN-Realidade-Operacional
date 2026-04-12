@@ -34,11 +34,13 @@ client.interceptors.response.use(
         } catch {
           localStorage.removeItem('token');
           localStorage.removeItem('refreshToken');
-          window.location.href = '/login';
+          localStorage.removeItem('user');
+          window.dispatchEvent(new Event('auth:logout'));
         }
       } else {
         localStorage.removeItem('token');
-        window.location.href = '/login';
+        localStorage.removeItem('user');
+        window.dispatchEvent(new Event('auth:logout'));
       }
     }
 

@@ -1,5 +1,5 @@
 datasource db {
-  provider = "postgresql"
+  provider = "sqlite"
   url      = env("DATABASE_URL")
 }
 
@@ -13,11 +13,13 @@ model User {
   lastName     String
   username     String   @unique
   passwordHash String
+  role         String   @default("operator")
   createdAt    DateTime @default(now())
   quebras           Quebra[]
   entregas          Entrega[]
   laminasProduzidas LaminaProduzida[]
   saidasVoo         SaidaVoo[]
+  pesosMovimentados PesoMovimentado[]
   @@index([username])
 }
 
@@ -73,6 +75,17 @@ model SaidaVoo {
   shift        String
   flightNumber String
   createdAt    DateTime @default(now())
+  @@index([userId])
+  @@index([createdAt])
+}
+
+model PesoMovimentado {
+  id        String   @id @default(cuid())
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  shift     String
+  pesoKg    Float
+  createdAt DateTime @default(now())
   @@index([userId])
   @@index([createdAt])
 }

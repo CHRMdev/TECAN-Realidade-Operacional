@@ -11,6 +11,8 @@ import { saidasVooRoutes } from './routes/saidasVoo';
 import { dashboardRoutes } from './routes/dashboard';
 import { exportRoutes } from './routes/export';
 import { historicoRoutes } from './routes/historico';
+import { adminRoutes } from './routes/admin';
+import { pesoRoutes } from './routes/peso';
 import { errorHandler } from './middleware/errorHandler';
 
 const prisma = new PrismaClient();
@@ -41,6 +43,8 @@ async function bootstrap() {
   await app.register(dashboardRoutes, { prefix: '/api' });
   await app.register(exportRoutes, { prefix: '/api' });
   await app.register(historicoRoutes, { prefix: '/api' });
+  await app.register(adminRoutes, { prefix: '/api' });
+  await app.register(pesoRoutes, { prefix: '/api' });
 
   app.setErrorHandler(errorHandler);
 

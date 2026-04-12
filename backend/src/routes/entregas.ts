@@ -1,13 +1,13 @@
 import { FastifyInstance } from 'fastify';
 import { z } from 'zod';
 import { authenticate } from '../middleware/auth';
-import { getCurrentShift } from '../services/shiftService';
 
 const createEntregaSchema = z
   .object({
     deliveryType: z.enum(['VOLUME', 'LAMINA']),
     uldNumber: z.string().optional(),
     awbs: z.array(z.string().min(1)).min(1),
+    shift: z.enum(['A', 'B', 'C']),
   })
   .refine(
     (data) => data.deliveryType !== 'LAMINA' || !!data.uldNumber,
@@ -17,7 +17,7 @@ const createEntregaSchema = z
 export async function entregasRoutes(app: FastifyInstance) {
   app.post('/entregas', { preHandler: authenticate }, async (request, reply) => {
     const body = createEntregaSchema.parse(request.body);
-    const shift = getCurrentShift();
+    const shift = body.shift;
 
     const entrega = await app.prisma.entrega.create({
       data: {

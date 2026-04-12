@@ -5,20 +5,36 @@ export function Header() {
 
   const now = new Date();
   const dateStr = now.toLocaleDateString('pt-BR', {
-    weekday: 'long',
-    year: 'numeric',
-    month: 'long',
-    day: 'numeric',
+    weekday: 'long', year: 'numeric', month: 'long', day: 'numeric',
   });
 
   return (
-    <header className="bg-slate-900 border-b border-slate-800 px-6 py-4 flex items-center justify-between">
+    <header style={{
+      backgroundColor: '#0d1a30',
+      borderBottom: '1px solid #1e3355',
+      padding: '12px 24px',
+      display: 'flex',
+      alignItems: 'center',
+      justifyContent: 'space-between',
+      boxShadow: '0 1px 8px rgba(0,0,0,0.4)',
+    }}>
       <div>
-        <h1 className="text-lg font-bold text-slate-100">TECAN — Realidade Operacional</h1>
-        <p className="text-sm text-slate-400 capitalize">{dateStr}</p>
+        <h1 style={{ color: '#e2eafc', fontSize: '15px', fontWeight: 700, margin: 0, letterSpacing: '-0.2px' }}>
+          TECAN — Realidade Operacional
+        </h1>
+        <p style={{ color: '#4a6485', fontSize: '12px', margin: '2px 0 0', textTransform: 'capitalize' }}>
+          {dateStr}
+        </p>
       </div>
-      <div className="text-sm text-slate-400">
-        Olá, <span className="font-medium text-slate-200">{user?.firstName}</span>
+      <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+        <div style={{
+          width: '7px', height: '7px', borderRadius: '50%',
+          backgroundColor: '#10b981',
+          boxShadow: '0 0 6px #10b981',
+        }} />
+        <span style={{ color: '#7a9bc4', fontSize: '13px' }}>
+          {user?.firstName} {user?.lastName}
+        </span>
       </div>
     </header>
   );

@@ -3,6 +3,7 @@ export interface User {
   username: string;
   firstName: string;
   lastName: string;
+  role: 'operator' | 'admin';
   createdAt?: string;
 }
 
@@ -48,6 +49,14 @@ export interface SaidaVoo {
   createdAt: string;
 }
 
+export interface PesoMovimentado {
+  id: string;
+  userId: string;
+  shift: string;
+  pesoKg: number;
+  createdAt: string;
+}
+
 export interface DashboardSummaryData {
   summary: {
     totalQuebras: number;
@@ -56,6 +65,7 @@ export interface DashboardSummaryData {
     totalAWBs: number;
     totalLaminas: number;
     totalSaidas: number;
+    totalPesoKg: number;
   };
   byShift: Array<{
     shift: string;
@@ -64,19 +74,22 @@ export interface DashboardSummaryData {
     awbs: number;
     laminas: number;
     saidas: number;
+    pesoKg: number;
   }>;
   byDay: Array<{
     day: string;
+    laminas: number;
+    laminasEntregues: number;
     quebras: number;
     entregas: number;
     awbs: number;
-    laminas: number;
     saidas: number;
+    pesoKg: number;
   }>;
 }
 
 export interface HistoricoItem {
-  type: 'quebra' | 'entrega' | 'lamina' | 'saida_voo';
+  type: 'quebra' | 'entrega' | 'lamina' | 'saida_voo' | 'peso';
   createdAt: string;
   data: Record<string, unknown>;
 }

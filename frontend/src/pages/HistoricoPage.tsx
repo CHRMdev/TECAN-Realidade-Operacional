@@ -5,7 +5,6 @@ import { Badge } from '../components/ui/Badge';
 import { Button } from '../components/ui/Button';
 import { Spinner } from '../components/ui/Spinner';
 import { useToast } from '../components/ui/Toast';
-import * as Select from '@radix-ui/react-select';
 import { ChevronDown, ChevronLeft, ChevronRight } from 'lucide-react';
 
 function getMonthRange() {
@@ -16,23 +15,13 @@ function getMonthRange() {
 }
 
 const TYPE_LABELS: Record<string, string> = {
-  quebra: 'Quebra',
-  entrega: 'Entrega',
-  lamina: 'Lâmina',
-  saida_voo: 'Saída de Voo',
+  quebra: 'Quebra', entrega: 'Entrega', lamina: 'Lâmina', saida_voo: 'Saída de Voo', peso: 'Peso',
 };
-
-const TYPE_BADGE: Record<string, 'orange' | 'green' | 'blue' | 'purple'> = {
-  quebra: 'orange',
-  entrega: 'green',
-  lamina: 'blue',
-  saida_voo: 'purple',
+const TYPE_BADGE: Record<string, 'warning' | 'success' | 'info' | 'sage' | 'default'> = {
+  quebra: 'warning', entrega: 'success', lamina: 'info', saida_voo: 'sage', peso: 'default',
 };
-
-const SHIFT_BADGE: Record<string, 'blue' | 'green' | 'orange'> = {
-  A: 'blue',
-  B: 'green',
-  C: 'orange',
+const SHIFT_BADGE: Record<string, 'info' | 'success' | 'warning'> = {
+  A: 'info', B: 'success', C: 'warning',
 };
 
 function getDetail(item: HistoricoItem): string {
@@ -44,8 +33,34 @@ function getDetail(item: HistoricoItem): string {
   }
   if (item.type === 'lamina') return `ULD ${d.uldNumber} | Cliente: ${d.clientName}`;
   if (item.type === 'saida_voo') return `Voo ${d.flightNumber}`;
+  if (item.type === 'peso') return `${d.pesoKg} kg`;
   return '';
 }
+
+const cardStyle: React.CSSProperties = {
+  backgroundColor: '#111e35',
+  border: '1px solid #1e3355',
+  borderRadius: '12px',
+};
+
+const inputStyle: React.CSSProperties = {
+  backgroundColor: '#0d1a30',
+  border: '1.5px solid #1e3355',
+  borderRadius: '8px',
+  padding: '8px 12px',
+  fontSize: '13px',
+  color: '#e2eafc',
+  outline: 'none',
+};
+
+const TYPES = [
+  { value: '', label: 'Todos' },
+  { value: 'quebra', label: 'Quebra' },
+  { value: 'entrega', label: 'Entrega' },
+  { value: 'lamina', label: 'Lâmina' },
+  { value: 'saida_voo', label: 'Saída de Voo' },
+  { value: 'peso', label: 'Peso' },
+];
 
 export function HistoricoPage() {
   const { toast } = useToast();
@@ -62,94 +77,91 @@ export function HistoricoPage() {
     try {
       const res = await getHistorico({ page: p, limit: 20, type: type || undefined, from: f, to: t });
       setResult(res);
-    } catch {
+    } catch (err) {
+      console.error('Histórico error:', err);
       toast({ type: 'error', title: 'Erro ao carregar histórico' });
     } finally {
       setLoading(false);
     }
   }, [toast]);
 
-  useEffect(() => {
-    fetchData(1, '', initFrom, initTo);
-  }, []);
+  useEffect(() => { fetchData(1, '', initFrom, initTo); }, []);
 
-  function handleFilter() {
-    setPage(1);
-    fetchData(1, typeFilter, from, to);
-  }
-
-  function handlePage(p: number) {
-    setPage(p);
-    fetchData(p, typeFilter, from, to);
-  }
+  function handleFilter() { setPage(1); fetchData(1, typeFilter, from, to); }
+  function handlePage(p: number) { setPage(p); fetchData(p, typeFilter, from, to); }
 
   const pagination = result?.pagination;
 
   return (
-    <div className="max-w-5xl mx-auto space-y-4">
+    <div style={{ maxWidth: '960px', margin: '0 auto', display: 'flex', flexDirection: 'column', gap: '16px' }}>
       {/* Filtros */}
-      <div className="flex flex-wrap items-end gap-3">
-        <div className="flex flex-col gap-1">
-          <label className="text-xs text-slate-400 font-medium">Tipo</label>
-          <Select.Root value={typeFilter} onValueChange={setTypeFilter}>
-            <Select.Trigger className="flex items-center justify-between gap-2 bg-slate-800 border border-slate-700 rounded-lg px-3 py-2 text-sm text-slate-100 outline-none focus:border-blue-500 transition-colors cursor-pointer w-40">
-              <Select.Value placeholder="Todos" />
-              <Select.Icon><ChevronDown size={14} className="text-slate-400" /></Select.Icon>
-            </Select.Trigger>
-            <Select.Portal>
-              <Select.Content className="bg-slate-800 border border-slate-700 rounded-lg shadow-xl z-50 overflow-hidden">
-                <Select.Viewport>
-                  {['', 'quebra', 'entrega', 'lamina', 'saida_voo'].map((val) => (
-                    <Select.Item key={val} value={val} className="px-3 py-2 text-sm text-slate-200 hover:bg-slate-700 cursor-pointer outline-none">
-                      <Select.ItemText>{val ? TYPE_LABELS[val] : 'Todos'}</Select.ItemText>
-                    </Select.Item>
-                  ))}
-                </Select.Viewport>
-              </Select.Content>
-            </Select.Portal>
-          </Select.Root>
+      <div style={{ ...cardStyle, padding: '16px', display: 'flex', flexWrap: 'wrap', alignItems: 'flex-end', gap: '12px' }}>
+        <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
+          <label style={{ fontSize: '11px', fontWeight: 600, color: '#4a6485', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
+            Tipo
+          </label>
+          <div style={{ position: 'relative' }}>
+            <select
+              value={typeFilter}
+              onChange={(e) => setTypeFilter(e.target.value)}
+              style={{ ...inputStyle, paddingRight: '32px', appearance: 'none', cursor: 'pointer', minWidth: '140px' }}
+            >
+              {TYPES.map((t) => <option key={t.value} value={t.value}>{t.label}</option>)}
+            </select>
+            <ChevronDown size={14} style={{ position: 'absolute', right: '10px', top: '50%', transform: 'translateY(-50%)', color: '#4a6485', pointerEvents: 'none' }} />
+          </div>
         </div>
-
-        <div className="flex flex-col gap-1">
-          <label className="text-xs text-slate-400 font-medium">De</label>
-          <input type="date" value={from} onChange={(e) => setFrom(e.target.value)} className="bg-slate-800 border border-slate-700 rounded-lg px-3 py-2 text-sm text-slate-100 outline-none focus:border-blue-500 transition-colors" />
+        <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
+          <label style={{ fontSize: '11px', fontWeight: 600, color: '#4a6485', textTransform: 'uppercase', letterSpacing: '0.05em' }}>De</label>
+          <input type="date" value={from} onChange={(e) => setFrom(e.target.value)} style={inputStyle}
+            onFocus={(e) => (e.target.style.borderColor = '#1a78d4')}
+            onBlur={(e) => (e.target.style.borderColor = '#1e3355')} />
         </div>
-        <div className="flex flex-col gap-1">
-          <label className="text-xs text-slate-400 font-medium">Até</label>
-          <input type="date" value={to} onChange={(e) => setTo(e.target.value)} className="bg-slate-800 border border-slate-700 rounded-lg px-3 py-2 text-sm text-slate-100 outline-none focus:border-blue-500 transition-colors" />
+        <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
+          <label style={{ fontSize: '11px', fontWeight: 600, color: '#4a6485', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Até</label>
+          <input type="date" value={to} onChange={(e) => setTo(e.target.value)} style={inputStyle}
+            onFocus={(e) => (e.target.style.borderColor = '#1a78d4')}
+            onBlur={(e) => (e.target.style.borderColor = '#1e3355')} />
         </div>
         <Button onClick={handleFilter} loading={loading}>Filtrar</Button>
       </div>
 
       {/* Tabela */}
-      <div className="bg-slate-800 rounded-xl border border-slate-700 overflow-hidden">
+      <div style={cardStyle}>
         {loading ? (
-          <div className="flex items-center justify-center py-16"><Spinner className="h-8 w-8" /></div>
+          <div style={{ display: 'flex', justifyContent: 'center', padding: '64px' }}>
+            <Spinner className="h-8 w-8" />
+          </div>
         ) : !result?.data.length ? (
-          <div className="flex items-center justify-center py-16 text-slate-500 text-sm">Nenhum registro encontrado</div>
+          <div style={{ display: 'flex', justifyContent: 'center', padding: '64px', color: '#4a6485', fontSize: '14px' }}>
+            Nenhum registro encontrado
+          </div>
         ) : (
-          <table className="w-full text-sm">
+          <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '13px' }}>
             <thead>
-              <tr className="border-b border-slate-700 text-left">
-                <th className="px-4 py-3 text-xs font-semibold text-slate-400 uppercase tracking-wide">Tipo</th>
-                <th className="px-4 py-3 text-xs font-semibold text-slate-400 uppercase tracking-wide">Turno</th>
-                <th className="px-4 py-3 text-xs font-semibold text-slate-400 uppercase tracking-wide">Detalhes</th>
-                <th className="px-4 py-3 text-xs font-semibold text-slate-400 uppercase tracking-wide">Data/Hora</th>
+              <tr style={{ borderBottom: '1px solid #1e3355' }}>
+                {['Tipo', 'Turno', 'Detalhes', 'Data/Hora'].map((h) => (
+                  <th key={h} style={{ padding: '12px 16px', textAlign: 'left', fontSize: '11px', fontWeight: 600, color: '#4a6485', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
+                    {h}
+                  </th>
+                ))}
               </tr>
             </thead>
             <tbody>
               {result.data.map((item, i) => {
                 const shift = (item.data as Record<string, unknown>).shift as string;
                 return (
-                  <tr key={i} className="border-b border-slate-700/50 hover:bg-slate-700/30 transition-colors">
-                    <td className="px-4 py-3">
-                      <Badge variant={TYPE_BADGE[item.type] ?? 'slate'}>{TYPE_LABELS[item.type] ?? item.type}</Badge>
+                  <tr key={i} style={{ borderBottom: '1px solid #162040', transition: 'background 0.1s' }}
+                    onMouseEnter={(e) => (e.currentTarget.style.backgroundColor = '#162040')}
+                    onMouseLeave={(e) => (e.currentTarget.style.backgroundColor = 'transparent')}>
+                    <td style={{ padding: '12px 16px' }}>
+                      <Badge variant={TYPE_BADGE[item.type] ?? 'default'}>{TYPE_LABELS[item.type] ?? item.type}</Badge>
                     </td>
-                    <td className="px-4 py-3">
-                      {shift && <Badge variant={SHIFT_BADGE[shift] ?? 'slate'}>Turno {shift}</Badge>}
+                    <td style={{ padding: '12px 16px' }}>
+                      {shift && <Badge variant={SHIFT_BADGE[shift] ?? 'default'}>Turno {shift}</Badge>}
                     </td>
-                    <td className="px-4 py-3 text-slate-300">{getDetail(item)}</td>
-                    <td className="px-4 py-3 text-slate-400 whitespace-nowrap">
+                    <td style={{ padding: '12px 16px', color: '#7a9bc4' }}>{getDetail(item)}</td>
+                    <td style={{ padding: '12px 16px', color: '#4a6485', whiteSpace: 'nowrap' }}>
                       {new Date(item.createdAt).toLocaleString('pt-BR')}
                     </td>
                   </tr>
@@ -162,14 +174,14 @@ export function HistoricoPage() {
 
       {/* Paginação */}
       {pagination && pagination.totalPages > 1 && (
-        <div className="flex items-center justify-between text-sm text-slate-400">
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', fontSize: '13px', color: '#4a6485' }}>
           <span>Página {pagination.page} de {pagination.totalPages} ({pagination.total} registros)</span>
-          <div className="flex gap-2">
+          <div style={{ display: 'flex', gap: '8px' }}>
             <Button variant="secondary" size="sm" disabled={page === 1} onClick={() => handlePage(page - 1)}>
-              <ChevronLeft size={16} /> Anterior
+              <ChevronLeft size={14} /> Anterior
             </Button>
             <Button variant="secondary" size="sm" disabled={page === pagination.totalPages} onClick={() => handlePage(page + 1)}>
-              Próximo <ChevronRight size={16} />
+              Próximo <ChevronRight size={14} />
             </Button>
           </div>
         </div>

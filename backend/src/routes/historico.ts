@@ -7,6 +7,7 @@ const querySchema = z.object({
   limit: z.coerce.number().min(1).max(100).default(20),
   from: z.string().optional(),
   to: z.string().optional(),
+  type: z.enum(['quebra', 'entrega', 'lamina', 'saida_voo', 'peso']).optional(),
 });
 
 export async function historicoRoutes(app: FastifyInstance) {
@@ -24,7 +25,7 @@ export async function historicoRoutes(app: FastifyInstance) {
           }
         : {};
 
-    const [quebras, entregas, laminas, saidas] = await Promise.all([
+    const [quebras, entregas, laminas, saidas, pesos] = await Promise.all([
       app.prisma.quebra.findMany({
         where: { userId: request.userId, ...dateFilter },
         orderBy: { createdAt: 'desc' },
@@ -45,6 +46,11 @@ export async function historicoRoutes(app: FastifyInstance) {
         orderBy: { createdAt: 'desc' },
         include: { user: { select: { username: true } } },
       }),
+      app.prisma.pesoMovimentado.findMany({
+        where: { userId: request.userId, ...dateFilter },
+        orderBy: { createdAt: 'desc' },
+        include: { user: { select: { username: true } } },
+      }),
     ]);
 
     // Merge all into unified timeline
@@ -53,10 +59,12 @@ export async function historicoRoutes(app: FastifyInstance) {
       ...entregas.map((e) => ({ type: 'entrega', createdAt: e.createdAt, data: e })),
       ...laminas.map((l) => ({ type: 'lamina', createdAt: l.createdAt, data: l })),
       ...saidas.map((s) => ({ type: 'saida_voo', createdAt: s.createdAt, data: s })),
+      ...pesos.map((p) => ({ type: 'peso', createdAt: p.createdAt, data: p })),
     ].sort((a, b) => b.createdAt.getTime() - a.createdAt.getTime());
 
-    const total = all.length;
-    const items = all.slice(skip, skip + query.limit);
+    const filtered = query.type ? all.filter((item) => item.type === query.type) : all;
+    const total = filtered.length;
+    const items = filtered.slice(skip, skip + query.limit);
 
     return reply.send({
       success: true,

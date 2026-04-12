@@ -9,7 +9,7 @@ export function Layout() {
 
   if (loading) {
     return (
-      <div className="flex items-center justify-center min-h-screen bg-slate-950">
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', minHeight: '100vh', backgroundColor: '#0b1628' }}>
         <Spinner className="h-8 w-8" />
       </div>
     );
@@ -18,11 +18,11 @@ export function Layout() {
   if (!user) return <Navigate to="/login" replace />;
 
   return (
-    <div className="flex min-h-screen bg-slate-950">
+    <div style={{ display: 'flex', minHeight: '100vh', backgroundColor: '#0b1628' }}>
       <Sidebar />
-      <div className="flex-1 flex flex-col min-w-0">
+      <div style={{ flex: 1, display: 'flex', flexDirection: 'column', minWidth: 0 }}>
         <Header />
-        <main className="flex-1 p-6 overflow-auto">
+        <main style={{ flex: 1, padding: '24px', overflowY: 'auto' }}>
           <Outlet />
         </main>
       </div>

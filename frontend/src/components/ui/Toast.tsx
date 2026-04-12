@@ -37,16 +37,16 @@ export function ToastProvider({ children }: { children: ReactNode }) {
                 initial={{ opacity: 0, x: 40 }}
                 animate={{ opacity: 1, x: 0 }}
                 exit={{ opacity: 0, x: 40 }}
-                className={`fixed bottom-4 right-4 z-50 flex items-start gap-3 rounded-xl border p-4 shadow-xl w-80 ${
+                className={`fixed bottom-4 right-4 z-50 flex items-start gap-3 rounded-lg border p-lg shadow-lg w-80 ${
                   msg.type === 'success'
-                    ? 'bg-green-950 border-green-800 text-green-100'
-                    : 'bg-red-950 border-red-800 text-red-100'
+                    ? 'bg-semantic-success/10 border-semantic-success/30 text-semantic-success'
+                    : 'bg-semantic-danger/10 border-semantic-danger/30 text-semantic-danger'
                 }`}
               >
                 {msg.type === 'success' ? (
-                  <CheckCircle size={18} className="text-green-400 shrink-0 mt-0.5" />
+                  <CheckCircle size={18} className="text-semantic-success shrink-0 mt-xs" />
                 ) : (
-                  <AlertCircle size={18} className="text-red-400 shrink-0 mt-0.5" />
+                  <AlertCircle size={18} className="text-semantic-danger shrink-0 mt-xs" />
                 )}
                 <div className="flex-1 min-w-0">
                   <p className="text-sm font-semibold">{msg.title}</p>

@@ -7,6 +7,7 @@ import { RegisterPage } from './pages/RegisterPage';
 import { DashboardPage } from './pages/DashboardPage';
 import { RegistrarPage } from './pages/RegistrarPage';
 import { HistoricoPage } from './pages/HistoricoPage';
+import { AdminPage } from './pages/AdminPage';
 
 function App() {
   return (
@@ -20,6 +21,7 @@ function App() {
               <Route path="/dashboard" element={<DashboardPage />} />
               <Route path="/registrar" element={<RegistrarPage />} />
               <Route path="/historico" element={<HistoricoPage />} />
+              <Route path="/admin" element={<AdminPage />} />
             </Route>
             <Route path="*" element={<Navigate to="/dashboard" replace />} />
           </Routes>

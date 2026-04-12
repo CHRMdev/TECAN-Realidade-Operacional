@@ -41,7 +41,7 @@ export async function registerUser(
   app: FastifyInstance,
   input: RegisterInput
 ): Promise<{
-  user: { id: string; username: string; firstName: string; lastName: string };
+  user: { id: string; username: string; firstName: string; lastName: string; role: string };
   token: string;
   refreshToken: string;
 }> {
@@ -60,7 +60,7 @@ export async function registerUser(
 
   const user = await prisma.user.create({
     data: { firstName: input.firstName, lastName: input.lastName, username, passwordHash },
-    select: { id: true, username: true, firstName: true, lastName: true },
+    select: { id: true, username: true, firstName: true, lastName: true, role: true },
   });
 
   const { token, refreshToken } = generateTokens(app, user.id, user.username);
@@ -72,7 +72,7 @@ export async function loginUser(
   app: FastifyInstance,
   input: LoginInput
 ): Promise<{
-  user: { id: string; username: string; firstName: string; lastName: string };
+  user: { id: string; username: string; firstName: string; lastName: string; role: string };
   token: string;
   refreshToken: string;
 }> {
@@ -94,7 +94,7 @@ export async function loginUser(
 
   const { token, refreshToken } = generateTokens(app, user.id, user.username);
   return {
-    user: { id: user.id, username: user.username, firstName: user.firstName, lastName: user.lastName },
+    user: { id: user.id, username: user.username, firstName: user.firstName, lastName: user.lastName, role: user.role },
     token,
     refreshToken,
   };

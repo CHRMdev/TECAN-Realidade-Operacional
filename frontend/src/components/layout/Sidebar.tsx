@@ -1,5 +1,5 @@
 import { NavLink, useNavigate } from 'react-router-dom';
-import { LayoutDashboard, PlusCircle, History, LogOut } from 'lucide-react';
+import { LayoutDashboard, PlusCircle, History, LogOut, Shield } from 'lucide-react';
 import { useAuth } from '../../contexts/AuthContext';
 import { clsx } from 'clsx';
 
@@ -19,12 +19,19 @@ export function Sidebar() {
   }
 
   return (
-    <aside className="w-60 shrink-0 bg-slate-900 border-r border-slate-800 flex flex-col min-h-screen">
-      <div className="px-5 py-5 border-b border-slate-800">
-        <p className="text-xs font-bold tracking-widest text-blue-400 uppercase">Azul Cargo</p>
-        <p className="text-sm font-semibold text-slate-200 mt-0.5">TECAN</p>
+    <aside
+      className="w-56 shrink-0 flex flex-col min-h-screen"
+      style={{ background: 'linear-gradient(180deg, #003a7a 0%, #004494 100%)' }}
+    >
+      {/* Logo */}
+      <div className="px-5 py-6 border-b border-white/10">
+        <p className="text-blue-300 text-xs font-bold tracking-[0.18em] uppercase mb-0.5">
+          Azul Cargo
+        </p>
+        <p className="text-white text-xl font-black tracking-tight">TECAN</p>
       </div>
 
+      {/* Nav */}
       <nav className="flex-1 px-3 py-4 flex flex-col gap-1">
         {NAV.map(({ to, icon: Icon, label }) => (
           <NavLink
@@ -32,29 +39,54 @@ export function Sidebar() {
             to={to}
             className={({ isActive }) =>
               clsx(
-                'flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-colors',
+                'flex items-center gap-3 px-4 py-2.5 rounded-lg text-sm font-medium transition-all',
                 isActive
-                  ? 'bg-blue-600 text-white'
-                  : 'text-slate-400 hover:text-slate-200 hover:bg-slate-800'
+                  ? 'bg-white/15 text-white shadow-sm'
+                  : 'text-blue-200 hover:bg-white/10 hover:text-white'
               )
             }
           >
-            <Icon size={18} />
-            {label}
+            {({ isActive }) => (
+              <>
+                <Icon size={17} className={isActive ? 'text-white' : 'text-blue-300'} />
+                {label}
+              </>
+            )}
           </NavLink>
         ))}
+        {user?.role === 'admin' && (
+          <NavLink
+            to="/admin"
+            className={({ isActive }) =>
+              clsx(
+                'flex items-center gap-3 px-4 py-2.5 rounded-lg text-sm font-medium transition-all',
+                isActive
+                  ? 'bg-white/15 text-white shadow-sm'
+                  : 'text-blue-200 hover:bg-white/10 hover:text-white'
+              )
+            }
+          >
+            {({ isActive }) => (
+              <>
+                <Shield size={17} className={isActive ? 'text-white' : 'text-blue-300'} />
+                Admin
+              </>
+            )}
+          </NavLink>
+        )}
       </nav>
 
-      <div className="px-3 py-4 border-t border-slate-800">
-        <div className="px-3 mb-2">
-          <p className="text-xs text-slate-500">Logado como</p>
-          <p className="text-sm text-slate-300 font-medium">{user?.username}</p>
+      {/* User + Logout */}
+      <div className="px-3 py-4 border-t border-white/10">
+        <div className="px-4 mb-3">
+          <p className="text-blue-400 text-xs">Logado como</p>
+          <p className="text-white text-sm font-semibold truncate">{user?.username}</p>
         </div>
         <button
           onClick={handleLogout}
-          className="flex items-center gap-3 w-full px-3 py-2.5 rounded-lg text-sm font-medium text-slate-400 hover:text-red-400 hover:bg-red-950/40 transition-colors"
+          className="flex items-center gap-3 w-full px-4 py-2.5 rounded-lg text-sm font-medium text-blue-200 hover:bg-red-500/20 hover:text-red-300 transition-all"
         >
-          <LogOut size={18} />
+          <LogOut size={17} />
           Sair
         </button>
       </div>
