@@ -17,7 +17,8 @@
       "Bash(__NEW_LINE_a4b5c14aa53cea12__ echo:*)",
       "Bash(/tmp/briefing-frontend.md:*)",
       "Bash(cd /c/Users/caiom/OneDrive/Documentos/Realidade Operacional - TECAN/frontend)",
-      "Bash(npx tsc:*)"
+      "Bash(npx tsc:*)",
+      "Bash(1 -d \"{\"\"firstName\"\":\"\"Cors\"\",\"\"lastName\"\":\"\"Teste\"\",\"\"password\"\":\"\"senha123\"\"}\")"
     ]
   }
 }
