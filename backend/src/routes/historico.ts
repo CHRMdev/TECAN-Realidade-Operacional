@@ -7,7 +7,7 @@ const querySchema = z.object({
   limit: z.coerce.number().min(1).max(100).default(20),
   from: z.string().optional(),
   to: z.string().optional(),
-  type: z.enum(['quebra', 'entrega', 'lamina', 'saida_voo', 'peso']).optional(),
+  type: z.enum(['quebra', 'entrega', 'lamina', 'saida_voo', 'peso', 'contingente']).optional(),
 });
 
 export async function historicoRoutes(app: FastifyInstance) {
@@ -15,40 +15,43 @@ export async function historicoRoutes(app: FastifyInstance) {
     const query = querySchema.parse(request.query);
     const skip = (query.page - 1) * query.limit;
 
-    const dateFilter =
+    const dateRange =
       query.from && query.to
-        ? {
-            createdAt: {
-              gte: new Date(query.from + 'T00:00:00.000Z'),
-              lte: new Date(query.to + 'T23:59:59.999Z'),
-            },
-          }
-        : {};
+        ? { gte: new Date(query.from + 'T00:00:00.000Z'), lte: new Date(query.to + 'T23:59:59.999Z') }
+        : null;
 
-    const [quebras, entregas, laminas, saidas, pesos] = await Promise.all([
+    const createdAtFilter = dateRange ? { createdAt: dateRange } : {};
+    const diaFilter = dateRange ? { dia: dateRange } : {};
+
+    const [quebras, entregas, laminas, saidas, pesos, contingentes] = await Promise.all([
       app.prisma.quebra.findMany({
-        where: { userId: request.userId, ...dateFilter },
+        where: { userId: request.userId, ...createdAtFilter },
         orderBy: { createdAt: 'desc' },
         include: { user: { select: { username: true } } },
       }),
       app.prisma.entrega.findMany({
-        where: { userId: request.userId, ...dateFilter },
+        where: { userId: request.userId, ...createdAtFilter },
         orderBy: { createdAt: 'desc' },
         include: { awbs: true, user: { select: { username: true } } },
       }),
       app.prisma.laminaProduzida.findMany({
-        where: { userId: request.userId, ...dateFilter },
+        where: { userId: request.userId, ...createdAtFilter },
         orderBy: { createdAt: 'desc' },
         include: { user: { select: { username: true } } },
       }),
       app.prisma.saidaVoo.findMany({
-        where: { userId: request.userId, ...dateFilter },
+        where: { userId: request.userId, ...createdAtFilter },
         orderBy: { createdAt: 'desc' },
         include: { user: { select: { username: true } } },
       }),
       app.prisma.pesoMovimentado.findMany({
-        where: { userId: request.userId, ...dateFilter },
+        where: { userId: request.userId, ...createdAtFilter },
         orderBy: { createdAt: 'desc' },
+        include: { user: { select: { username: true } } },
+      }),
+      app.prisma.contingente.findMany({
+        where: { ...diaFilter },
+        orderBy: [{ dia: 'desc' }, { shift: 'asc' }],
         include: { user: { select: { username: true } } },
       }),
     ]);
@@ -60,6 +63,7 @@ export async function historicoRoutes(app: FastifyInstance) {
       ...laminas.map((l) => ({ type: 'lamina', createdAt: l.createdAt, data: l })),
       ...saidas.map((s) => ({ type: 'saida_voo', createdAt: s.createdAt, data: s })),
       ...pesos.map((p) => ({ type: 'peso', createdAt: p.createdAt, data: p })),
+      ...contingentes.map((c) => ({ type: 'contingente', createdAt: c.dia, data: c })),
     ].sort((a, b) => b.createdAt.getTime() - a.createdAt.getTime());
 
     const filtered = query.type ? all.filter((item) => item.type === query.type) : all;

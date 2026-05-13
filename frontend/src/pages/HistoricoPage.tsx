@@ -15,10 +15,15 @@ function getMonthRange() {
 }
 
 const TYPE_LABELS: Record<string, string> = {
-  quebra: 'Quebra', entrega: 'Entrega', lamina: 'Lâmina', saida_voo: 'Saída de Voo', peso: 'Peso',
+  quebra: 'Desembarque',
+  entrega: 'Retira',
+  lamina: 'Produção',
+  saida_voo: 'Volumetria',
+  peso: 'Peso (legado)',
+  contingente: 'Contingente',
 };
 const TYPE_BADGE: Record<string, 'warning' | 'success' | 'info' | 'sage' | 'default'> = {
-  quebra: 'warning', entrega: 'success', lamina: 'info', saida_voo: 'sage', peso: 'default',
+  quebra: 'warning', entrega: 'success', lamina: 'info', saida_voo: 'sage', peso: 'default', contingente: 'info',
 };
 const SHIFT_BADGE: Record<string, 'info' | 'success' | 'warning'> = {
   A: 'info', B: 'success', C: 'warning',
@@ -32,8 +37,12 @@ function getDetail(item: HistoricoItem): string {
     return `${d.deliveryType}${d.uldNumber ? ` | ULD ${d.uldNumber}` : ''} | ${awbs.length} AWB(s)`;
   }
   if (item.type === 'lamina') return `ULD ${d.uldNumber} | Cliente: ${d.clientName}`;
-  if (item.type === 'saida_voo') return `Voo ${d.flightNumber}`;
+  if (item.type === 'saida_voo') {
+    const peso = d.pesoKg as number | null | undefined;
+    return `Voo ${d.flightNumber}${peso ? ` | ${peso} kg` : ''}`;
+  }
   if (item.type === 'peso') return `${d.pesoKg} kg`;
+  if (item.type === 'contingente') return `${d.quantidadeTripulantes} tripulante(s)`;
   return '';
 }
 
@@ -55,11 +64,12 @@ const inputStyle: React.CSSProperties = {
 
 const TYPES = [
   { value: '', label: 'Todos' },
-  { value: 'quebra', label: 'Quebra' },
-  { value: 'entrega', label: 'Entrega' },
-  { value: 'lamina', label: 'Lâmina' },
-  { value: 'saida_voo', label: 'Saída de Voo' },
-  { value: 'peso', label: 'Peso' },
+  { value: 'quebra', label: 'Desembarque' },
+  { value: 'entrega', label: 'Retira' },
+  { value: 'lamina', label: 'Produção' },
+  { value: 'saida_voo', label: 'Volumetria' },
+  { value: 'contingente', label: 'Contingente' },
+  { value: 'peso', label: 'Peso (legado)' },
 ];
 
 export function HistoricoPage() {

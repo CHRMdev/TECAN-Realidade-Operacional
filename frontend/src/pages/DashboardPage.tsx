@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { Layers, Package, PackageOpen, Truck, FileText, Download, Scale, Calendar, TrendingUp, PlaneTakeoff } from 'lucide-react';
+import { Layers, PackageOpen, Truck, FileText, Download, Scale, Calendar, TrendingUp, PlaneTakeoff, Users } from 'lucide-react';
 import { getSummary } from '../api/dashboard';
 import { downloadExcel, downloadPdf } from '../api/export';
 import type { DashboardSummaryData } from '../types';
@@ -184,19 +184,26 @@ export function DashboardPage() {
                 gap: '10px',
                 minWidth: '840px',
               }}>
-                <KpiCard label="Lâminas Produzidas" value={data.summary.totalLaminas} icon={Layers} accentColor="#1a78d4" delay={0} />
-                <KpiCard label="Lâminas Entregues" value={data.summary.laminasEntregues} icon={Package} accentColor="#10b981" delay={0.05} />
-                <KpiCard label="Desembarcadas" value={data.summary.totalQuebras} icon={PackageOpen} accentColor="#e07050" delay={0.1} />
-                <KpiCard label="Total Entregas" value={data.summary.totalEntregas} icon={Truck} accentColor="#f59e0b" delay={0.15} />
-                <KpiCard label="AWBs Entregues" value={data.summary.totalAWBs} icon={FileText} accentColor="#6b9e8f" delay={0.2} />
-                <KpiCard label="Saídas de Voo" value={data.summary.totalSaidas} icon={PlaneTakeoff} accentColor="#a78bfa" delay={0.25} />
+                <KpiCard label="Desembarque" value={data.summary.totalQuebras} icon={PackageOpen} accentColor="#e07050" delay={0} />
+                <KpiCard label="Retira" value={data.summary.totalEntregas} icon={Truck} accentColor="#f59e0b" delay={0.05} />
+                <KpiCard label="AWBs" value={data.summary.totalAWBs} icon={FileText} accentColor="#6b9e8f" delay={0.1} />
+                <KpiCard label="Produção" value={data.summary.totalLaminas} icon={Layers} accentColor="#1a78d4" delay={0.15} />
+                <KpiCard label="Saídas de Voo" value={data.summary.totalSaidas} icon={PlaneTakeoff} accentColor="#a78bfa" delay={0.2} />
                 <KpiCard
-                  label="Peso Movimentado"
-                  value={Math.round(data.summary.totalPesoKg)}
+                  label="Volumetria"
+                  value={Math.round(data.summary.totalVolumetriaKg)}
                   icon={Scale}
                   accentColor="#8b5cf6"
-                  delay={0.3}
+                  delay={0.25}
                   suffix="kg"
+                />
+                <KpiCard
+                  label="Contingente"
+                  value={data.summary.totalContingente}
+                  icon={Users}
+                  accentColor="#10b981"
+                  delay={0.3}
+                  suffix="trip."
                 />
               </div>
             </div>
@@ -208,7 +215,7 @@ export function DashboardPage() {
               <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '20px' }}>
                 <div>
                   <p style={{ color: '#e2eafc', fontSize: '14px', fontWeight: 700, margin: 0 }}>Atividade por Dia</p>
-                  <p style={{ color: '#4a6485', fontSize: '11px', margin: '3px 0 0' }}>Lâminas, quebras, entregas e AWBs</p>
+                  <p style={{ color: '#4a6485', fontSize: '11px', margin: '3px 0 0' }}>Produção, desembarque, retira e AWBs</p>
                 </div>
                 <div style={{ width: '3px', height: '28px', borderRadius: '2px', backgroundColor: '#1a78d4' }} />
               </div>
@@ -218,7 +225,7 @@ export function DashboardPage() {
             <div style={chartCardStyle}>
               <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '16px' }}>
                 <div>
-                  <p style={{ color: '#e2eafc', fontSize: '14px', fontWeight: 700, margin: 0 }}>Lâminas por Turno</p>
+                  <p style={{ color: '#e2eafc', fontSize: '14px', fontWeight: 700, margin: 0 }}>Produção por Turno</p>
                   <p style={{ color: '#4a6485', fontSize: '11px', margin: '3px 0 0' }}>Distribuição A / B / C</p>
                 </div>
                 <div style={{ width: '3px', height: '28px', borderRadius: '2px', backgroundColor: '#e07050' }} />
@@ -226,6 +233,43 @@ export function DashboardPage() {
               <DonutTurnos data={data.byShift} />
             </div>
           </div>
+
+          {data.contingenteByDay.length > 0 && (
+            <div style={chartCardStyle}>
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '16px' }}>
+                <div>
+                  <p style={{ color: '#e2eafc', fontSize: '14px', fontWeight: 700, margin: 0 }}>Contingente por Dia × Turno</p>
+                  <p style={{ color: '#4a6485', fontSize: '11px', margin: '3px 0 0' }}>Quantos tripulantes cada turno informou no dia</p>
+                </div>
+                <div style={{ width: '3px', height: '28px', borderRadius: '2px', backgroundColor: '#10b981' }} />
+              </div>
+              <div style={{ overflowX: 'auto' }}>
+                <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '13px' }}>
+                  <thead>
+                    <tr style={{ borderBottom: '1px solid #1e3355' }}>
+                      {['Dia', 'Turno A', 'Turno B', 'Turno C', 'Total'].map((h) => (
+                        <th key={h} style={{ padding: '8px 12px', textAlign: 'left', color: '#4a6485', fontSize: '11px', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.05em' }}>{h}</th>
+                      ))}
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {data.contingenteByDay.map((row) => {
+                      const total = row.A + row.B + row.C;
+                      return (
+                        <tr key={row.day} style={{ borderBottom: '1px solid #162040' }}>
+                          <td style={{ padding: '8px 12px', color: '#e2eafc' }}>{formatDateBR(row.day)}</td>
+                          <td style={{ padding: '8px 12px', color: row.A ? '#60a5fa' : '#4a6485' }}>{row.A || '—'}</td>
+                          <td style={{ padding: '8px 12px', color: row.B ? '#10b981' : '#4a6485' }}>{row.B || '—'}</td>
+                          <td style={{ padding: '8px 12px', color: row.C ? '#f59e0b' : '#4a6485' }}>{row.C || '—'}</td>
+                          <td style={{ padding: '8px 12px', color: '#e2eafc', fontWeight: 700 }}>{total}</td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          )}
         </>
       ) : null}
 

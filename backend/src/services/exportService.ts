@@ -7,14 +7,16 @@ async function fetchData(prisma: PrismaClient, from: string, to: string) {
   const fromDate = new Date(from + 'T00:00:00.000Z');
   const toDate = new Date(to + 'T23:59:59.999Z');
   const where = { createdAt: { gte: fromDate, lte: toDate } };
+  const diaWhere = { dia: { gte: fromDate, lte: toDate } };
 
-  const [quebras, entregas, laminas, saidas] = await Promise.all([
+  const [quebras, entregas, laminas, saidas, contingentes] = await Promise.all([
     prisma.quebra.findMany({ where, include: { user: { select: { username: true } } }, orderBy: { createdAt: 'asc' } }),
     prisma.entrega.findMany({ where, include: { awbs: true, user: { select: { username: true } } }, orderBy: { createdAt: 'asc' } }),
     prisma.laminaProduzida.findMany({ where, include: { user: { select: { username: true } } }, orderBy: { createdAt: 'asc' } }),
     prisma.saidaVoo.findMany({ where, include: { user: { select: { username: true } } }, orderBy: { createdAt: 'asc' } }),
+    prisma.contingente.findMany({ where: diaWhere, include: { user: { select: { username: true } } }, orderBy: [{ dia: 'asc' }, { shift: 'asc' }] }),
   ]);
-  return { quebras, entregas, laminas, saidas };
+  return { quebras, entregas, laminas, saidas, contingentes };
 }
 
 export async function exportExcel(
@@ -22,50 +24,61 @@ export async function exportExcel(
   from: string,
   to: string
 ): Promise<Buffer> {
-  const { quebras, entregas, laminas, saidas } = await fetchData(prisma, from, to);
+  const { quebras, entregas, laminas, saidas, contingentes } = await fetchData(prisma, from, to);
   const totalAWBs = entregas.reduce((sum, e) => sum + e.awbs.length, 0);
+  const totalPesoVoos = saidas.reduce((sum, s) => sum + (s.pesoKg ?? 0), 0);
+  const totalTripulantes = contingentes.reduce((sum, c) => sum + c.quantidadeTripulantes, 0);
 
   const wb = XLSX.utils.book_new();
 
   // Resumo
   const resumoData = [
     ['KPI', 'Total'],
-    ['Quebras', quebras.length],
-    ['Entregas', entregas.length],
+    ['Desembarques (Quebras)', quebras.length],
+    ['Retiras (Entregas)', entregas.length],
     ['AWBs', totalAWBs],
-    ['Lâminas Produzidas', laminas.length],
+    ['Produção (Lâminas)', laminas.length],
     ['Saídas de Voo', saidas.length],
+    ['Volumetria total (kg)', Math.round(totalPesoVoos)],
+    ['Contingente total (tripulantes)', totalTripulantes],
     ['Período', `${from} a ${to}`],
   ];
   XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet(resumoData), 'Resumo');
 
-  // Quebras
+  // Desembarque (Quebras)
   const quebrasRows: any[][] = [['ID', 'Usuário', 'Turno', 'Voo', 'ULD', 'Data']];
   quebras.forEach((q) =>
     quebrasRows.push([q.id, q.user.username, q.shift, q.flightNumber, q.uldNumber, format(q.createdAt, 'dd/MM/yyyy HH:mm')])
   );
-  XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet(quebrasRows), 'Quebras');
+  XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet(quebrasRows), 'Desembarque');
 
-  // Entregas
+  // Retira (Entregas)
   const entregasRows: any[][] = [['ID', 'Usuário', 'Turno', 'Tipo', 'ULD', 'AWBs', 'Data']];
   entregas.forEach((e) =>
     entregasRows.push([e.id, e.user.username, e.shift, e.deliveryType, e.uldNumber || '', e.awbs.map((a) => a.awbNumber).join(', '), format(e.createdAt, 'dd/MM/yyyy HH:mm')])
   );
-  XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet(entregasRows), 'Entregas');
+  XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet(entregasRows), 'Retira');
 
-  // LaminasProduzidas
+  // Produção (Lâminas)
   const laminasRows: any[][] = [['ID', 'Usuário', 'Turno', 'ULD', 'Cliente', 'Data']];
   laminas.forEach((l) =>
     laminasRows.push([l.id, l.user.username, l.shift, l.uldNumber, l.clientName, format(l.createdAt, 'dd/MM/yyyy HH:mm')])
   );
-  XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet(laminasRows), 'LaminasProduzidas');
+  XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet(laminasRows), 'Produção');
 
-  // SaidasVoo
-  const saidasRows: any[][] = [['ID', 'Usuário', 'Turno', 'Voo', 'Data']];
+  // Volumetria (SaidaVoo + peso)
+  const saidasRows: any[][] = [['ID', 'Usuário', 'Turno', 'Voo', 'Peso (kg)', 'Data']];
   saidas.forEach((s) =>
-    saidasRows.push([s.id, s.user.username, s.shift, s.flightNumber, format(s.createdAt, 'dd/MM/yyyy HH:mm')])
+    saidasRows.push([s.id, s.user.username, s.shift, s.flightNumber, s.pesoKg ?? '', format(s.createdAt, 'dd/MM/yyyy HH:mm')])
   );
-  XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet(saidasRows), 'SaidasVoo');
+  XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet(saidasRows), 'Volumetria');
+
+  // Contingente
+  const contRows: any[][] = [['ID', 'Usuário', 'Turno', 'Tripulantes', 'Dia']];
+  contingentes.forEach((c) =>
+    contRows.push([c.id, c.user.username, c.shift, c.quantidadeTripulantes, format(c.dia, 'dd/MM/yyyy')])
+  );
+  XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet(contRows), 'Contingente');
 
   return XLSX.write(wb, { type: 'buffer', bookType: 'xlsx' }) as Buffer;
 }
@@ -75,8 +88,10 @@ export async function exportPdf(
   from: string,
   to: string
 ): Promise<Buffer> {
-  const { quebras, entregas, laminas, saidas } = await fetchData(prisma, from, to);
+  const { quebras, entregas, laminas, saidas, contingentes } = await fetchData(prisma, from, to);
   const totalAWBs = entregas.reduce((sum, e) => sum + e.awbs.length, 0);
+  const totalPesoVoos = saidas.reduce((sum, s) => sum + (s.pesoKg ?? 0), 0);
+  const totalTripulantes = contingentes.reduce((sum, c) => sum + c.quantidadeTripulantes, 0);
 
   return new Promise((resolve, reject) => {
     const doc = new PDFDocument({ margin: 50 });
@@ -96,11 +111,13 @@ export async function exportPdf(
     doc.fontSize(14).font('Helvetica-Bold').text('Resumo Geral');
     doc.moveDown(0.5);
     doc.fontSize(11).font('Helvetica');
-    doc.text(`Quebras: ${quebras.length}`);
-    doc.text(`Entregas: ${entregas.length}`);
+    doc.text(`Desembarques: ${quebras.length}`);
+    doc.text(`Retiras: ${entregas.length}`);
     doc.text(`AWBs: ${totalAWBs}`);
-    doc.text(`Lâminas Produzidas: ${laminas.length}`);
+    doc.text(`Produção: ${laminas.length}`);
     doc.text(`Saídas de Voo: ${saidas.length}`);
+    doc.text(`Volumetria total: ${Math.round(totalPesoVoos)} kg`);
+    doc.text(`Contingente total: ${totalTripulantes} tripulantes`);
     doc.moveDown(1.5);
 
     // Por turno
@@ -112,8 +129,10 @@ export async function exportPdf(
       const awbs = entregas.filter((x) => x.shift === shift).reduce((sum, x) => sum + x.awbs.length, 0);
       const l = laminas.filter((x) => x.shift === shift).length;
       const s = saidas.filter((x) => x.shift === shift).length;
+      const peso = saidas.filter((x) => x.shift === shift).reduce((sum, x) => sum + (x.pesoKg ?? 0), 0);
+      const trip = contingentes.filter((x) => x.shift === shift).reduce((sum, x) => sum + x.quantidadeTripulantes, 0);
       doc.fontSize(12).font('Helvetica-Bold').text(`Turno ${shift}:`);
-      doc.fontSize(11).font('Helvetica').text(`  Quebras: ${q} | Entregas: ${e} | AWBs: ${awbs} | Lâminas: ${l} | Saídas: ${s}`);
+      doc.fontSize(11).font('Helvetica').text(`  Desembarques: ${q} | Retiras: ${e} | AWBs: ${awbs} | Produção: ${l} | Saídas: ${s} | Peso: ${Math.round(peso)} kg | Tripulantes: ${trip}`);
       doc.moveDown(0.5);
     });
 

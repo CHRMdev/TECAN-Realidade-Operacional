@@ -46,6 +46,7 @@ export interface SaidaVoo {
   userId: string;
   shift: string;
   flightNumber: string;
+  pesoKg?: number | null;
   createdAt: string;
 }
 
@@ -54,6 +55,15 @@ export interface PesoMovimentado {
   userId: string;
   shift: string;
   pesoKg: number;
+  createdAt: string;
+}
+
+export interface Contingente {
+  id: string;
+  userId: string;
+  shift: string;
+  quantidadeTripulantes: number;
+  dia: string;
   createdAt: string;
 }
 
@@ -66,6 +76,8 @@ export interface DashboardSummaryData {
     totalLaminas: number;
     totalSaidas: number;
     totalPesoKg: number;
+    totalVolumetriaKg: number;
+    totalContingente: number;
   };
   byShift: Array<{
     shift: string;
@@ -75,6 +87,7 @@ export interface DashboardSummaryData {
     laminas: number;
     saidas: number;
     pesoKg: number;
+    tripulantes: number;
   }>;
   byDay: Array<{
     day: string;
@@ -86,10 +99,18 @@ export interface DashboardSummaryData {
     saidas: number;
     pesoKg: number;
   }>;
+  contingenteByDay: Array<{
+    day: string;
+    A: number;
+    B: number;
+    C: number;
+  }>;
 }
 
+export type RecordType = 'quebra' | 'entrega' | 'lamina' | 'saida_voo' | 'peso' | 'contingente';
+
 export interface HistoricoItem {
-  type: 'quebra' | 'entrega' | 'lamina' | 'saida_voo' | 'peso';
+  type: RecordType;
   createdAt: string;
   data: Record<string, unknown>;
 }

@@ -2,6 +2,7 @@ import 'dotenv/config';
 import Fastify from 'fastify';
 import cors from '@fastify/cors';
 import jwt from '@fastify/jwt';
+import multipart from '@fastify/multipart';
 import { PrismaClient } from '@prisma/client';
 import { authRoutes } from './routes/auth';
 import { quebrasRoutes } from './routes/quebras';
@@ -13,6 +14,8 @@ import { exportRoutes } from './routes/export';
 import { historicoRoutes } from './routes/historico';
 import { adminRoutes } from './routes/admin';
 import { pesoRoutes } from './routes/peso';
+import { contingenteRoutes } from './routes/contingente';
+import { importRoutes } from './routes/import';
 import { errorHandler } from './middleware/errorHandler';
 
 const prisma = new PrismaClient();
@@ -26,6 +29,12 @@ async function bootstrap() {
 
   await app.register(jwt, {
     secret: process.env.JWT_SECRET!,
+  });
+
+  await app.register(multipart, {
+    limits: {
+      fileSize: 10 * 1024 * 1024, // 10MB
+    },
   });
 
   app.decorate('prisma', prisma);
@@ -45,6 +54,8 @@ async function bootstrap() {
   await app.register(historicoRoutes, { prefix: '/api' });
   await app.register(adminRoutes, { prefix: '/api' });
   await app.register(pesoRoutes, { prefix: '/api' });
+  await app.register(contingenteRoutes, { prefix: '/api' });
+  await app.register(importRoutes, { prefix: '/api' });
 
   app.setErrorHandler(errorHandler);
 

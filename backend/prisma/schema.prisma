@@ -21,6 +21,7 @@ model User {
   laminasProduzidas LaminaProduzida[]
   saidasVoo         SaidaVoo[]
   pesosMovimentados PesoMovimentado[]
+  contingentes      Contingente[]
   @@index([username])
 }
 
@@ -75,9 +76,23 @@ model SaidaVoo {
   user         User     @relation(fields: [userId], references: [id], onDelete: Cascade)
   shift        String
   flightNumber String
+  pesoKg       Float?
   createdAt    DateTime @default(now())
   @@index([userId])
   @@index([createdAt])
+}
+
+model Contingente {
+  id                    String   @id @default(cuid())
+  userId                String
+  user                  User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  shift                 String
+  quantidadeTripulantes Int
+  dia                   DateTime @db.Date
+  createdAt             DateTime @default(now())
+  @@unique([dia, shift])
+  @@index([userId])
+  @@index([dia])
 }
 
 model PesoMovimentado {

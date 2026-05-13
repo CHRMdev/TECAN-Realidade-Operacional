@@ -10,7 +10,7 @@ export interface AdminUser {
 }
 
 export interface AdminRecord {
-  type: 'quebra' | 'entrega' | 'lamina' | 'saida_voo' | 'peso';
+  type: 'quebra' | 'entrega' | 'lamina' | 'saida_voo' | 'peso' | 'contingente';
   createdAt: string;
   data: Record<string, unknown>;
 }

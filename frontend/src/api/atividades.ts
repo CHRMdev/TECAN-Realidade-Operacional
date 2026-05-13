@@ -1,5 +1,5 @@
 import client from './client';
-import type { Quebra, Entrega, LaminaProduzida, SaidaVoo, PesoMovimentado } from '../types';
+import type { Quebra, Entrega, LaminaProduzida, SaidaVoo, PesoMovimentado, Contingente } from '../types';
 
 export async function postQuebra(data: {
   flightNumber: string;
@@ -32,6 +32,7 @@ export async function postLamina(data: {
 export async function postSaidaVoo(data: {
   flightNumber: string;
   shift: 'A' | 'B' | 'C';
+  pesoKg?: number;
 }): Promise<{ success: true; saida: SaidaVoo }> {
   const res = await client.post('/api/saidas-voo', data);
   return res.data;
@@ -42,5 +43,14 @@ export async function postPeso(data: {
   shift: 'A' | 'B' | 'C';
 }): Promise<{ success: true; peso: PesoMovimentado }> {
   const res = await client.post('/api/atividades/peso', data);
+  return res.data;
+}
+
+export async function postContingente(data: {
+  shift: 'A' | 'B' | 'C';
+  quantidadeTripulantes: number;
+  dia?: string;
+}): Promise<{ success: true; contingente: Contingente }> {
+  const res = await client.post('/api/contingente', data);
   return res.data;
 }

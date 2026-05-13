@@ -1,7 +1,8 @@
 import { useState } from 'react';
 import * as Tabs from '@radix-ui/react-tabs';
-import { ChevronDown, X, Plus } from 'lucide-react';
-import { postQuebra, postEntrega, postLamina, postSaidaVoo, postPeso } from '../api/atividades';
+import { ChevronDown, X, Plus, Upload, Download, FileSpreadsheet } from 'lucide-react';
+import { postQuebra, postEntrega, postLamina, postSaidaVoo, postContingente } from '../api/atividades';
+import { downloadTemplate, uploadExcel, downloadErrorReport, type ImportError, type ImportResult } from '../api/import';
 import { useAuth } from '../contexts/AuthContext';
 import { useToast } from '../components/ui/Toast';
 import { Input } from '../components/ui/Input';
@@ -27,28 +28,18 @@ const selectStyle: React.CSSProperties = {
   cursor: 'pointer',
 };
 
-function SelectField({ label, value, onChange, options }: {
-  label: string;
-  value: string;
-  onChange: (v: string) => void;
-  options: { value: string; label: string }[];
-}) {
-  return (
-    <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
-      <label style={{ fontSize: '13px', fontWeight: 600, color: '#7a9bc4' }}>{label}</label>
-      <div style={{ position: 'relative' }}>
-        <select value={value} onChange={(e) => onChange(e.target.value)} style={selectStyle}
-          onFocus={(e) => (e.target.style.borderColor = '#1a78d4')}
-          onBlur={(e) => (e.target.style.borderColor = '#1e3355')}>
-          {options.map((o) => <option key={o.value} value={o.value}>{o.label}</option>)}
-        </select>
-        <ChevronDown size={14} style={{ position: 'absolute', right: '12px', top: '50%', transform: 'translateY(-50%)', color: '#4a6485', pointerEvents: 'none' }} />
-      </div>
-    </div>
-  );
-}
+const numberInputStyle: React.CSSProperties = {
+  padding: '10px 14px',
+  fontSize: '14px',
+  backgroundColor: '#0d1a30',
+  border: '1.5px solid #1e3355',
+  borderRadius: '8px',
+  color: '#e2eafc',
+  outline: 'none',
+};
 
-function QuebrasTab({ shift }: { shift: 'A' | 'B' | 'C' }) {
+// ─── DESEMBARQUE ──────────────────────────────────────────────────────────
+function DesembarqueTab({ shift }: { shift: 'A' | 'B' | 'C' }) {
   const { toast } = useToast();
   const [flightNumber, setFlightNumber] = useState('');
   const [uldNumber, setUldNumber] = useState('');
@@ -59,7 +50,7 @@ function QuebrasTab({ shift }: { shift: 'A' | 'B' | 'C' }) {
     setLoading(true);
     try {
       await postQuebra({ flightNumber, uldNumber, shift });
-      toast({ type: 'success', title: 'Quebra registrada!', description: `Voo ${flightNumber} — ULD ${uldNumber}` });
+      toast({ type: 'success', title: 'Desembarque registrado!', description: `Voo ${flightNumber} — ULD ${uldNumber}` });
       setFlightNumber(''); setUldNumber('');
     } catch (err: unknown) {
       const msg = (err as { response?: { data?: { message?: string } } })?.response?.data?.message || 'Erro ao registrar';
@@ -71,21 +62,22 @@ function QuebrasTab({ shift }: { shift: 'A' | 'B' | 'C' }) {
     <form onSubmit={handleSubmit} style={{ display: 'flex', flexDirection: 'column', gap: '16px', maxWidth: '480px' }}>
       <Input label="Número do Voo" placeholder="Ex: AD1234" value={flightNumber} onChange={(e) => setFlightNumber(e.target.value.toUpperCase())} required />
       <Input label="Número da ULD" placeholder="Ex: PAG12345R7" value={uldNumber} onChange={(e) => setUldNumber(e.target.value.toUpperCase())} required />
-      <Button type="submit" loading={loading}>Registrar Quebra</Button>
+      <Button type="submit" loading={loading}>Registrar Desembarque</Button>
     </form>
   );
 }
 
-function EntregasTab({ shift }: { shift: 'A' | 'B' | 'C' }) {
+// ─── RETIRA ───────────────────────────────────────────────────────────────
+function RetiraTab({ shift }: { shift: 'A' | 'B' | 'C' }) {
   const { toast } = useToast();
-  const [deliveryType, setDeliveryType] = useState('VOLUME');
   const [uldNumber, setUldNumber] = useState('');
   const [awbInput, setAwbInput] = useState('');
   const [awbs, setAwbs] = useState<string[]>([]);
+  const [cliente, setCliente] = useState('');
   const [loading, setLoading] = useState(false);
 
   function addAwbs(raw: string) {
-    const items = raw.split(/[,\s]+/).map((s) => s.trim().toUpperCase()).filter(Boolean);
+    const items = raw.split(/[,;\s]+/).map((s) => s.trim().toUpperCase()).filter(Boolean);
     setAwbs((prev) => [...prev, ...items.filter((a) => !prev.includes(a))]);
     setAwbInput('');
   }
@@ -93,11 +85,22 @@ function EntregasTab({ shift }: { shift: 'A' | 'B' | 'C' }) {
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
     if (!awbs.length) { toast({ type: 'error', title: 'Adicione ao menos 1 AWB' }); return; }
+    if (!cliente.trim()) { toast({ type: 'error', title: 'Informe o cliente' }); return; }
     setLoading(true);
+    const isLamina = uldNumber.trim().length > 0;
     try {
-      await postEntrega({ deliveryType: deliveryType as 'VOLUME' | 'LAMINA', uldNumber: deliveryType === 'LAMINA' ? uldNumber : undefined, awbs, shift });
-      toast({ type: 'success', title: 'Entrega registrada!', description: `${awbs.length} AWB(s)` });
-      setUldNumber(''); setAwbs([]);
+      await postEntrega({
+        deliveryType: isLamina ? 'LAMINA' : 'VOLUME',
+        uldNumber: isLamina ? uldNumber : undefined,
+        awbs,
+        shift,
+      });
+      toast({
+        type: 'success',
+        title: `Retira registrada (${isLamina ? 'LÂMINA' : 'VOLUME'})`,
+        description: `${awbs.length} AWB(s) — ${cliente}`,
+      });
+      setUldNumber(''); setAwbs([]); setCliente('');
     } catch (err: unknown) {
       const msg = (err as { response?: { data?: { message?: string } } })?.response?.data?.message || 'Erro ao registrar';
       toast({ type: 'error', title: 'Erro', description: msg });
@@ -106,18 +109,27 @@ function EntregasTab({ shift }: { shift: 'A' | 'B' | 'C' }) {
 
   return (
     <form onSubmit={handleSubmit} style={{ display: 'flex', flexDirection: 'column', gap: '16px', maxWidth: '480px' }}>
-      <SelectField label="Tipo de Entrega" value={deliveryType} onChange={setDeliveryType}
-        options={[{ value: 'VOLUME', label: 'Volume' }, { value: 'LAMINA', label: 'Lâmina' }]} />
-      {deliveryType === 'LAMINA' && (
-        <Input label="Número da Lâmina (ULD)" placeholder="Ex: PAG12345R7" value={uldNumber} onChange={(e) => setUldNumber(e.target.value.toUpperCase())} />
-      )}
+      <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
+        <label style={{ fontSize: '13px', fontWeight: 600, color: '#7a9bc4' }}>
+          ULD (opcional — se preencher = LÂMINA, vazio = VOLUME)
+        </label>
+        <input
+          type="text"
+          placeholder="Ex: PAG12345R7 (deixe vazio para VOLUME)"
+          value={uldNumber}
+          onChange={(e) => setUldNumber(e.target.value.toUpperCase())}
+          style={numberInputStyle}
+          onFocus={(e) => (e.target.style.borderColor = '#1a78d4')}
+          onBlur={(e) => (e.target.style.borderColor = '#1e3355')}
+        />
+      </div>
       <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
         <label style={{ fontSize: '13px', fontWeight: 600, color: '#7a9bc4' }}>AWBs</label>
         <div style={{ display: 'flex', gap: '8px' }}>
-          <input type="text" placeholder="Digite ou cole AWBs (separe por vírgula)" value={awbInput}
+          <input type="text" placeholder="Digite ou cole AWBs (separe por ;)" value={awbInput}
             onChange={(e) => setAwbInput(e.target.value)}
             onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); addAwbs(awbInput); } }}
-            style={{ flex: 1, padding: '10px 14px', fontSize: '14px', backgroundColor: '#0d1a30', border: '1.5px solid #1e3355', borderRadius: '8px', color: '#e2eafc', outline: 'none' }}
+            style={{ ...numberInputStyle, flex: 1 }}
             onFocus={(e) => (e.target.style.borderColor = '#1a78d4')}
             onBlur={(e) => (e.target.style.borderColor = '#1e3355')} />
           <Button type="button" variant="secondary" size="sm" onClick={() => addAwbs(awbInput)}><Plus size={15} /></Button>
@@ -135,12 +147,14 @@ function EntregasTab({ shift }: { shift: 'A' | 'B' | 'C' }) {
           </div>
         )}
       </div>
-      <Button type="submit" loading={loading}>Registrar Entrega</Button>
+      <Input label="Cliente" placeholder="Ex: Supersonic" value={cliente} onChange={(e) => setCliente(e.target.value)} required />
+      <Button type="submit" loading={loading}>Registrar Retira</Button>
     </form>
   );
 }
 
-function LaminaTab({ shift }: { shift: 'A' | 'B' | 'C' }) {
+// ─── PRODUÇÃO ─────────────────────────────────────────────────────────────
+function ProducaoTab({ shift }: { shift: 'A' | 'B' | 'C' }) {
   const { toast } = useToast();
   const [uldNumber, setUldNumber] = useState('');
   const [clientName, setClientName] = useState('');
@@ -151,7 +165,7 @@ function LaminaTab({ shift }: { shift: 'A' | 'B' | 'C' }) {
     setLoading(true);
     try {
       await postLamina({ uldNumber, clientName, shift });
-      toast({ type: 'success', title: 'Lâmina registrada!', description: `Cliente: ${clientName}` });
+      toast({ type: 'success', title: 'Produção registrada!', description: `Cliente: ${clientName}` });
       setUldNumber(''); setClientName('');
     } catch (err: unknown) {
       const msg = (err as { response?: { data?: { message?: string } } })?.response?.data?.message || 'Erro ao registrar';
@@ -161,45 +175,18 @@ function LaminaTab({ shift }: { shift: 'A' | 'B' | 'C' }) {
 
   return (
     <form onSubmit={handleSubmit} style={{ display: 'flex', flexDirection: 'column', gap: '16px', maxWidth: '480px' }}>
-      <Input label="Número da Lâmina (ULD)" placeholder="Ex: PAG12345R7" value={uldNumber} onChange={(e) => setUldNumber(e.target.value.toUpperCase())} required />
+      <Input label="Número da ULD Produzida" placeholder="Ex: PAG12345R7" value={uldNumber} onChange={(e) => setUldNumber(e.target.value.toUpperCase())} required />
       <Input label="Nome do Cliente" placeholder="Ex: LATAM Cargo" value={clientName} onChange={(e) => setClientName(e.target.value)} required />
-      <Button type="submit" loading={loading}>Registrar Lâmina</Button>
+      <Button type="submit" loading={loading}>Registrar Produção</Button>
     </form>
   );
 }
 
-function SaidaVooTab({ shift }: { shift: 'A' | 'B' | 'C' }) {
+// ─── VOLUMETRIA ───────────────────────────────────────────────────────────
+function VolumetriaTab({ shift }: { shift: 'A' | 'B' | 'C' }) {
   const { user } = useAuth();
   const { toast } = useToast();
   const [flightNumber, setFlightNumber] = useState('');
-  const [loading, setLoading] = useState(false);
-
-  async function handleSubmit(e: React.FormEvent) {
-    e.preventDefault();
-    setLoading(true);
-    try {
-      await postSaidaVoo({ flightNumber, shift });
-      toast({ type: 'success', title: 'Saída registrada!', description: `Voo ${flightNumber}` });
-      setFlightNumber('');
-    } catch (err: unknown) {
-      const msg = (err as { response?: { data?: { message?: string } } })?.response?.data?.message || 'Erro ao registrar';
-      toast({ type: 'error', title: 'Erro', description: msg });
-    } finally { setLoading(false); }
-  }
-
-  return (
-    <form onSubmit={handleSubmit} style={{ display: 'flex', flexDirection: 'column', gap: '16px', maxWidth: '480px' }}>
-      <Input label="Número do Voo" placeholder="Ex: AD1234" value={flightNumber} onChange={(e) => setFlightNumber(e.target.value.toUpperCase())} required />
-      <div style={{ backgroundColor: '#0d1a30', border: '1px solid #1e3355', borderRadius: '8px', padding: '10px 14px', fontSize: '13px', color: '#4a6485' }}>
-        Registrado por: <span style={{ color: '#7a9bc4', fontWeight: 600 }}>{user?.username}</span>
-      </div>
-      <Button type="submit" loading={loading}>Registrar Saída</Button>
-    </form>
-  );
-}
-
-function PesoTab({ shift }: { shift: 'A' | 'B' | 'C' }) {
-  const { toast } = useToast();
   const [pesoKg, setPesoKg] = useState('');
   const [loading, setLoading] = useState(false);
 
@@ -212,65 +199,264 @@ function PesoTab({ shift }: { shift: 'A' | 'B' | 'C' }) {
     }
     setLoading(true);
     try {
-      await postPeso({ pesoKg: kg, shift });
-      toast({ type: 'success', title: 'Peso registrado!', description: `${kg} kg — Turno ${shift}` });
-      setPesoKg('');
+      await postSaidaVoo({ flightNumber, shift, pesoKg: kg });
+      toast({ type: 'success', title: 'Volumetria registrada!', description: `Voo ${flightNumber} — ${kg} kg` });
+      setFlightNumber(''); setPesoKg('');
     } catch (err: unknown) {
       const msg = (err as { response?: { data?: { message?: string } } })?.response?.data?.message || 'Erro ao registrar';
       toast({ type: 'error', title: 'Erro', description: msg });
-    } finally {
-      setLoading(false);
+    } finally { setLoading(false); }
+  }
+
+  return (
+    <form onSubmit={handleSubmit} style={{ display: 'flex', flexDirection: 'column', gap: '16px', maxWidth: '480px' }}>
+      <Input label="Número do Voo" placeholder="Ex: AD1234" value={flightNumber} onChange={(e) => setFlightNumber(e.target.value.toUpperCase())} required />
+      <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
+        <label style={{ fontSize: '13px', fontWeight: 600, color: '#7a9bc4' }}>Peso total do voo (kg)</label>
+        <input type="number" step="0.1" min="0.1" placeholder="Ex: 2500" value={pesoKg} onChange={(e) => setPesoKg(e.target.value)} required
+          style={numberInputStyle}
+          onFocus={(e) => (e.target.style.borderColor = '#1a78d4')}
+          onBlur={(e) => (e.target.style.borderColor = '#1e3355')} />
+      </div>
+      <div style={{ backgroundColor: '#0d1a30', border: '1px solid #1e3355', borderRadius: '8px', padding: '10px 14px', fontSize: '13px', color: '#4a6485' }}>
+        Registrado por: <span style={{ color: '#7a9bc4', fontWeight: 600 }}>{user?.username}</span>
+      </div>
+      <Button type="submit" loading={loading}>Registrar Volumetria</Button>
+    </form>
+  );
+}
+
+// ─── CONTINGENTE ──────────────────────────────────────────────────────────
+function ContingenteTab({ shift }: { shift: 'A' | 'B' | 'C' }) {
+  const { toast } = useToast();
+  const [qtd, setQtd] = useState('');
+  const [dia, setDia] = useState(() => new Date().toISOString().slice(0, 10));
+  const [loading, setLoading] = useState(false);
+
+  async function handleSubmit(e: React.FormEvent) {
+    e.preventDefault();
+    const n = parseInt(qtd, 10);
+    if (isNaN(n) || n <= 0) {
+      toast({ type: 'error', title: 'Quantidade inválida', description: 'Inteiro maior que zero' });
+      return;
     }
+    setLoading(true);
+    try {
+      await postContingente({ shift, quantidadeTripulantes: n, dia });
+      toast({ type: 'success', title: `Contingente registrado (turno ${shift})`, description: `${n} tripulante(s) em ${dia}` });
+      setQtd('');
+    } catch (err: unknown) {
+      const msg = (err as { response?: { data?: { message?: string } } })?.response?.data?.message || 'Erro ao registrar';
+      toast({ type: 'error', title: 'Erro', description: msg });
+    } finally { setLoading(false); }
   }
 
   return (
     <form onSubmit={handleSubmit} style={{ display: 'flex', flexDirection: 'column', gap: '16px', maxWidth: '480px' }}>
       <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
-        <label style={{ fontSize: '13px', fontWeight: 600, color: '#7a9bc4' }}>
-          Peso Movimentado (kg)
-        </label>
-        <input
-          type="number"
-          step="0.1"
-          min="0.1"
-          placeholder="Ex: 1523.5"
-          value={pesoKg}
-          onChange={(e) => setPesoKg(e.target.value)}
-          required
-          style={{
-            padding: '10px 14px',
-            fontSize: '14px',
-            backgroundColor: '#0d1a30',
-            border: '1.5px solid #1e3355',
-            borderRadius: '8px',
-            color: '#e2eafc',
-            outline: 'none',
-          }}
+        <label style={{ fontSize: '13px', fontWeight: 600, color: '#7a9bc4' }}>Dia</label>
+        <input type="date" value={dia} onChange={(e) => setDia(e.target.value)} required
+          style={numberInputStyle}
           onFocus={(e) => (e.target.style.borderColor = '#1a78d4')}
-          onBlur={(e) => (e.target.style.borderColor = '#1e3355')}
-        />
-        <p style={{ fontSize: '12px', color: '#4a6485', margin: 0 }}>
-          Total de kg movimentados no turno
-        </p>
+          onBlur={(e) => (e.target.style.borderColor = '#1e3355')} />
       </div>
-      <Button type="submit" loading={loading}>Registrar Peso</Button>
+      <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
+        <label style={{ fontSize: '13px', fontWeight: 600, color: '#7a9bc4' }}>Quantidade de tripulantes (turno {shift})</label>
+        <input type="number" min="1" step="1" placeholder="Ex: 8" value={qtd} onChange={(e) => setQtd(e.target.value)} required
+          style={numberInputStyle}
+          onFocus={(e) => (e.target.style.borderColor = '#1a78d4')}
+          onBlur={(e) => (e.target.style.borderColor = '#1e3355')} />
+      </div>
+      <div style={{ backgroundColor: '#0d1a30', border: '1px solid #1e3355', borderRadius: '8px', padding: '10px 14px', fontSize: '12px', color: '#4a6485' }}>
+        Apenas 1 registro por (dia, turno). Reenviar sobrescreve o valor anterior.
+      </div>
+      <Button type="submit" loading={loading}>Registrar Contingente</Button>
     </form>
   );
 }
 
+// ─── IMPORTAR PLANILHA ────────────────────────────────────────────────────
+function ImportTab() {
+  const { toast } = useToast();
+  const [file, setFile] = useState<File | null>(null);
+  const [downloading, setDownloading] = useState(false);
+  const [uploading, setUploading] = useState(false);
+  const [result, setResult] = useState<ImportResult | null>(null);
+
+  async function handleDownload() {
+    setDownloading(true);
+    try {
+      await downloadTemplate();
+      toast({ type: 'success', title: 'Template baixado', description: 'Abra o arquivo e preencha as 5 abas.' });
+    } catch {
+      toast({ type: 'error', title: 'Erro ao baixar template' });
+    } finally {
+      setDownloading(false);
+    }
+  }
+
+  async function handleUpload() {
+    if (!file) {
+      toast({ type: 'error', title: 'Selecione um arquivo' });
+      return;
+    }
+    setUploading(true);
+    try {
+      const res = await uploadExcel(file);
+      setResult(res);
+    } catch (err: unknown) {
+      const msg = (err as { response?: { data?: { message?: string } } })?.response?.data?.message || 'Erro no upload';
+      toast({ type: 'error', title: 'Erro', description: msg });
+    } finally {
+      setUploading(false);
+    }
+  }
+
+  function handleDownloadErrors() {
+    if (result?.errorReportBase64) {
+      downloadErrorReport(result.errorReportBase64);
+    }
+  }
+
+  const totalCreated = result
+    ? result.created.desembarques + result.created.retiras + result.created.producoes + result.created.volumetrias + result.created.contingentes
+    : 0;
+
+  return (
+    <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))', gap: '16px' }}>
+        <div style={{ backgroundColor: '#0d1a30', border: '1px solid #1e3355', borderRadius: '10px', padding: '20px' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginBottom: '8px' }}>
+            <Download size={16} color="#60a5fa" />
+            <strong style={{ color: '#e2eafc', fontSize: '14px' }}>1. Baixar template</strong>
+          </div>
+          <p style={{ color: '#4a6485', fontSize: '12px', margin: '0 0 14px' }}>
+            Planilha com 5 abas (Desembarque, Retira, Produção, Volumetria, Contingente). Dropdowns nativos
+            do Excel ajudam a preencher sem erros.
+          </p>
+          <Button onClick={handleDownload} loading={downloading} variant="secondary" size="sm" style={{ width: '100%' }}>
+            Baixar template (.xlsx)
+          </Button>
+        </div>
+
+        <div style={{ backgroundColor: '#0d1a30', border: '1px solid #1e3355', borderRadius: '10px', padding: '20px' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginBottom: '8px' }}>
+            <Upload size={16} color="#60a5fa" />
+            <strong style={{ color: '#e2eafc', fontSize: '14px' }}>2. Subir preenchido</strong>
+          </div>
+          <p style={{ color: '#4a6485', fontSize: '12px', margin: '0 0 14px' }}>
+            Linhas válidas são criadas imediatamente. Linhas inválidas voltam marcadas em vermelho
+            para você corrigir.
+          </p>
+          <input
+            type="file"
+            accept=".xlsx,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+            onChange={(e) => setFile(e.target.files?.[0] || null)}
+            style={{ display: 'block', marginBottom: '10px', color: '#7a9bc4', fontSize: '12px', width: '100%' }}
+          />
+          <Button onClick={handleUpload} loading={uploading} disabled={!file} size="sm" style={{ width: '100%' }}>
+            <FileSpreadsheet size={14} /> Enviar
+          </Button>
+        </div>
+      </div>
+
+      {result && (
+        <div style={{
+          backgroundColor: '#0d1a30',
+          border: `1px solid ${result.errors.length > 0 ? '#f59e0b40' : '#10b98140'}`,
+          borderRadius: '10px',
+          padding: '20px',
+        }}>
+          <h4 style={{ color: '#e2eafc', fontSize: '15px', fontWeight: 700, margin: '0 0 12px' }}>
+            Resultado da importação
+          </h4>
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(5, 1fr)', gap: '8px', marginBottom: '16px' }}>
+            <ResultPill label="Desembarques" value={result.created.desembarques} />
+            <ResultPill label="Retiras" value={result.created.retiras} />
+            <ResultPill label="Produções" value={result.created.producoes} />
+            <ResultPill label="Volumetrias" value={result.created.volumetrias} />
+            <ResultPill label="Contingentes" value={result.created.contingentes} />
+          </div>
+
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '10px' }}>
+            <span style={{ color: '#4a6485', fontSize: '13px' }}>
+              <strong style={{ color: '#10b981' }}>{totalCreated}</strong> linha(s) importada(s) ·{' '}
+              <strong style={{ color: result.errors.length > 0 ? '#f59e0b' : '#4a6485' }}>{result.errors.length}</strong> erro(s)
+            </span>
+            {result.errorReportBase64 && (
+              <Button variant="secondary" size="sm" onClick={handleDownloadErrors}>
+                <Download size={13} /> Baixar planilha com erros
+              </Button>
+            )}
+          </div>
+
+          {result.errors.length > 0 && <ErrorsTable errors={result.errors} />}
+        </div>
+      )}
+    </div>
+  );
+}
+
+function ResultPill({ label, value }: { label: string; value: number }) {
+  return (
+    <div style={{
+      backgroundColor: value > 0 ? '#10b98115' : '#1e3355',
+      border: `1px solid ${value > 0 ? '#10b98140' : '#1e3355'}`,
+      borderRadius: '8px',
+      padding: '10px',
+      textAlign: 'center',
+    }}>
+      <div style={{ color: value > 0 ? '#10b981' : '#4a6485', fontSize: '20px', fontWeight: 700, lineHeight: 1 }}>{value}</div>
+      <div style={{ color: '#4a6485', fontSize: '10px', textTransform: 'uppercase', letterSpacing: '0.05em', marginTop: '4px' }}>{label}</div>
+    </div>
+  );
+}
+
+function ErrorsTable({ errors }: { errors: ImportError[] }) {
+  return (
+    <div style={{ maxHeight: '300px', overflowY: 'auto', border: '1px solid #1e3355', borderRadius: '8px' }}>
+      <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '12px' }}>
+        <thead>
+          <tr style={{ backgroundColor: '#162040', position: 'sticky', top: 0 }}>
+            {['Aba', 'Linha', 'Campo', 'Valor', 'Motivo'].map((h) => (
+              <th key={h} style={{ padding: '8px 12px', textAlign: 'left', color: '#7a9bc4', fontWeight: 600, fontSize: '11px', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
+                {h}
+              </th>
+            ))}
+          </tr>
+        </thead>
+        <tbody>
+          {errors.map((e, i) => (
+            <tr key={i} style={{ borderBottom: '1px solid #162040' }}>
+              <td style={{ padding: '6px 12px', color: '#e2eafc' }}>{e.sheet}</td>
+              <td style={{ padding: '6px 12px', color: '#7a9bc4' }}>{e.row}</td>
+              <td style={{ padding: '6px 12px', color: '#7a9bc4' }}>{e.field}</td>
+              <td style={{ padding: '6px 12px', color: '#7a9bc4', maxWidth: '120px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{e.value || '—'}</td>
+              <td style={{ padding: '6px 12px', color: '#ef4444' }}>{e.message}</td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+    </div>
+  );
+}
+
+// ─── Página ────────────────────────────────────────────────────────────────
+
 const TABS = [
-  { value: 'quebra', label: 'Quebra' },
-  { value: 'entrega', label: 'Entrega' },
-  { value: 'lamina', label: 'Lâmina' },
-  { value: 'saida', label: 'Saída de Voo' },
-  { value: 'peso', label: 'Peso' },
+  { value: 'desembarque', label: 'Desembarque' },
+  { value: 'retira', label: 'Retira' },
+  { value: 'producao', label: 'Produção' },
+  { value: 'volumetria', label: 'Volumetria' },
+  { value: 'contingente', label: 'Contingente' },
+  { value: 'importar', label: 'Importar Planilha' },
 ];
 
 export function RegistrarPage() {
   const [shift, setShift] = useState<'A' | 'B' | 'C'>('A');
 
   return (
-    <div style={{ maxWidth: '640px', margin: '0 auto' }}>
+    <div style={{ maxWidth: '760px', margin: '0 auto' }}>
       <div style={{ display: 'flex', alignItems: 'center', gap: '12px', marginBottom: '20px' }}>
         <h2 style={{ color: '#e2eafc', fontSize: '18px', fontWeight: 700, margin: 0 }}>Registrar Atividade</h2>
         <div style={{ position: 'relative' }}>
@@ -289,13 +475,13 @@ export function RegistrarPage() {
         </div>
       </div>
 
-      <Tabs.Root defaultValue="quebra">
+      <Tabs.Root defaultValue="desembarque">
         <Tabs.List style={{ display: 'flex', gap: '4px', backgroundColor: '#0d1a30', borderRadius: '10px', padding: '4px', marginBottom: '16px', border: '1px solid #1e3355' }}>
           {TABS.map((tab) => (
             <Tabs.Trigger
               key={tab.value}
               value={tab.value}
-              style={{ flex: 1, padding: '8px 8px', borderRadius: '7px', fontSize: '12px', fontWeight: 600, cursor: 'pointer', border: 'none', backgroundColor: 'transparent', color: '#4a6485', transition: 'all 0.15s' }}
+              style={{ flex: 1, padding: '8px 6px', borderRadius: '7px', fontSize: '11px', fontWeight: 600, cursor: 'pointer', border: 'none', backgroundColor: 'transparent', color: '#4a6485', transition: 'all 0.15s' }}
               className="data-[state=active]:!bg-[#1a78d4] data-[state=active]:!text-white hover:!text-[#7a9bc4]"
             >
               {tab.label}
@@ -304,11 +490,12 @@ export function RegistrarPage() {
         </Tabs.List>
 
         <div style={cardStyle}>
-          <Tabs.Content value="quebra"><QuebrasTab shift={shift} /></Tabs.Content>
-          <Tabs.Content value="entrega"><EntregasTab shift={shift} /></Tabs.Content>
-          <Tabs.Content value="lamina"><LaminaTab shift={shift} /></Tabs.Content>
-          <Tabs.Content value="saida"><SaidaVooTab shift={shift} /></Tabs.Content>
-          <Tabs.Content value="peso"><PesoTab shift={shift} /></Tabs.Content>
+          <Tabs.Content value="desembarque"><DesembarqueTab shift={shift} /></Tabs.Content>
+          <Tabs.Content value="retira"><RetiraTab shift={shift} /></Tabs.Content>
+          <Tabs.Content value="producao"><ProducaoTab shift={shift} /></Tabs.Content>
+          <Tabs.Content value="volumetria"><VolumetriaTab shift={shift} /></Tabs.Content>
+          <Tabs.Content value="contingente"><ContingenteTab shift={shift} /></Tabs.Content>
+          <Tabs.Content value="importar"><ImportTab /></Tabs.Content>
         </div>
       </Tabs.Root>
     </div>

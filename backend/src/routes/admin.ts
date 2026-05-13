@@ -58,7 +58,7 @@ export async function adminRoutes(app: FastifyInstance) {
   const adminRecordsQuerySchema = z.object({
     page: z.coerce.number().min(1).default(1),
     limit: z.coerce.number().min(1).max(100).default(20),
-    type: z.enum(['quebra', 'entrega', 'lamina', 'saida_voo', 'peso']).optional(),
+    type: z.enum(['quebra', 'entrega', 'lamina', 'saida_voo', 'peso', 'contingente']).optional(),
     userId: z.string().optional(),
     from: z.string().optional(),
     to: z.string().optional(),
@@ -68,17 +68,19 @@ export async function adminRoutes(app: FastifyInstance) {
     const query = adminRecordsQuerySchema.parse(request.query);
     const skip = (query.page - 1) * query.limit;
 
-    const dateFilter = query.from && query.to ? {
-      createdAt: {
-        gte: new Date(query.from + 'T00:00:00.000Z'),
-        lte: new Date(query.to + 'T23:59:59.999Z'),
-      },
-    } : {};
+    const dateRange = query.from && query.to ? {
+      gte: new Date(query.from + 'T00:00:00.000Z'),
+      lte: new Date(query.to + 'T23:59:59.999Z'),
+    } : null;
+
+    const createdAtFilter = dateRange ? { createdAt: dateRange } : {};
+    const diaFilter = dateRange ? { dia: dateRange } : {};
 
     const userFilter = query.userId ? { userId: query.userId } : {};
-    const where = { ...dateFilter, ...userFilter };
+    const where = { ...createdAtFilter, ...userFilter };
+    const whereContingente = { ...diaFilter, ...userFilter };
 
-    const [quebras, entregas, laminas, saidas, pesos] = await Promise.all([
+    const [quebras, entregas, laminas, saidas, pesos, contingentes] = await Promise.all([
       app.prisma.quebra.findMany({
         where,
         orderBy: { createdAt: 'desc' },
@@ -104,6 +106,11 @@ export async function adminRoutes(app: FastifyInstance) {
         orderBy: { createdAt: 'desc' },
         include: { user: { select: { username: true } } },
       }),
+      app.prisma.contingente.findMany({
+        where: whereContingente,
+        orderBy: [{ dia: 'desc' }, { shift: 'asc' }],
+        include: { user: { select: { username: true } } },
+      }),
     ]);
 
     const all = [
@@ -112,6 +119,7 @@ export async function adminRoutes(app: FastifyInstance) {
       ...laminas.map((l) => ({ type: 'lamina' as const, createdAt: l.createdAt, data: l })),
       ...saidas.map((s) => ({ type: 'saida_voo' as const, createdAt: s.createdAt, data: s })),
       ...pesos.map((p) => ({ type: 'peso' as const, createdAt: p.createdAt, data: p })),
+      ...contingentes.map((c) => ({ type: 'contingente' as const, createdAt: c.dia, data: c })),
     ].sort((a, b) => b.createdAt.getTime() - a.createdAt.getTime());
 
     const filtered = query.type ? all.filter((item) => item.type === query.type) : all;
@@ -128,7 +136,7 @@ export async function adminRoutes(app: FastifyInstance) {
   // DELETE /admin/records/bulk — deleta múltiplos registros (DEVE estar ANTES de :type/:id)
   const bulkDeleteSchema = z.object({
     records: z.array(z.object({
-      type: z.enum(['quebra', 'entrega', 'lamina', 'saida_voo', 'peso']),
+      type: z.enum(['quebra', 'entrega', 'lamina', 'saida_voo', 'peso', 'contingente']),
       id: z.string(),
     })).min(1),
   });
@@ -147,6 +155,7 @@ export async function adminRoutes(app: FastifyInstance) {
       if (byType.lamina?.length) await tx.laminaProduzida.deleteMany({ where: { id: { in: byType.lamina } } });
       if (byType.saida_voo?.length) await tx.saidaVoo.deleteMany({ where: { id: { in: byType.saida_voo } } });
       if (byType.peso?.length) await tx.pesoMovimentado.deleteMany({ where: { id: { in: byType.peso } } });
+      if (byType.contingente?.length) await tx.contingente.deleteMany({ where: { id: { in: byType.contingente } } });
     });
 
     return reply.send({ success: true, deleted: body.records.length });
@@ -166,6 +175,8 @@ export async function adminRoutes(app: FastifyInstance) {
       await app.prisma.saidaVoo.delete({ where: { id } });
     } else if (type === 'peso') {
       await app.prisma.pesoMovimentado.delete({ where: { id } });
+    } else if (type === 'contingente') {
+      await app.prisma.contingente.delete({ where: { id } });
     } else {
       return reply.code(400).send({ success: false, message: 'Tipo inválido' });
     }

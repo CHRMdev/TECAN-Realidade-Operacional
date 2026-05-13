@@ -5,6 +5,7 @@ import { authenticate } from '../middleware/auth';
 const createSchema = z.object({
   flightNumber: z.string().min(1),
   shift: z.enum(['A', 'B', 'C']),
+  pesoKg: z.number().positive('Peso deve ser maior que zero').optional(),
 });
 
 export async function saidasVooRoutes(app: FastifyInstance) {
@@ -17,6 +18,7 @@ export async function saidasVooRoutes(app: FastifyInstance) {
         userId: request.userId,
         shift,
         flightNumber: body.flightNumber,
+        pesoKg: body.pesoKg,
       },
       include: { user: { select: { username: true, firstName: true, lastName: true } } },
     });

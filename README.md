@@ -1,6 +1,6 @@
 # Realidade Operacional — TECAN
 
-> **v1.1** — Migração de infraestrutura: banco de dados em **Neon** (PostgreSQL serverless) e backend em **Render**.
+> **v1.2** — Linguagem alinhada com a operação (Desembarque, Retira, Produção, Volumetria, Contingente) + **importação por planilha Excel**.
 
 Sistema web para o terminal TECAN da Azul Cargo Express (Viracopos). Substitui relatórios manuais por um dashboard interativo onde os turnos registram atividades e a coordenação extrai relatórios consolidados.
 
@@ -15,6 +15,7 @@ Sistema web para o terminal TECAN da Azul Cargo Express (Viracopos). Substitui r
 | **Frontend** | React 19 · TypeScript · Vite 8 · Tailwind CSS v4 · Radix UI · Recharts · Framer Motion · React Router v7 |
 | **Backend** | Node.js · Fastify v4 · Prisma v5 · PostgreSQL · JWT (access + refresh token) · bcrypt · Zod |
 | **Exportação** | PDFKit · xlsx |
+| **Importação** | exceljs · @fastify/multipart (template `.xlsx` com data validations + upload em lote) |
 | **Deploy frontend** | [Vercel](https://vercel.com) |
 | **Deploy backend** | [Render](https://render.com) (Node.js Web Service) |
 | **Banco de dados** | [Neon](https://neon.tech) (PostgreSQL serverless com pooling via PgBouncer) |
@@ -24,30 +25,41 @@ Sistema web para o terminal TECAN da Azul Cargo Express (Viracopos). Substitui r
 ## Funcionalidades
 
 ### Dashboard
-- 7 KPIs do período: Lâminas Produzidas, Lâminas Entregues, Desembarcadas (Quebras), Total Entregas, AWBs Entregues, Saídas de Voo, Peso Movimentado (kg)
-- Gráfico de barras: atividade por dia (lâminas, quebras, entregas, AWBs)
-- Gráfico donut: distribuição de lâminas por turno (A / B / C)
+- **7 KPIs** do período: Desembarque, Retira, AWBs, Produção, Saídas de Voo, Volumetria (kg) e Contingente
+- Gráfico de barras: atividade por dia (produção, desembarque, retira, AWBs)
+- Gráfico donut: produção por turno (A / B / C)
+- Tabela **Contingente × Dia × Turno** — quantos tripulantes cada turno informou em cada dia
 - Filtro por período (padrão: mês corrente)
-- Exportação de relatório em **Excel (.xlsx)** ou **PDF**
+- Exportação de relatório em **Excel (.xlsx)** ou **PDF** (com aba dedicada a Contingente)
 
 ### Registrar Atividade
-Cinco tipos de registro, todos associados a um turno (A, B ou C):
+Cinco tipos de registro + uma aba dedicada à importação em lote. Todos associados a um turno (A, B ou C):
 
-| Aba | Dados registrados |
-|-----|-------------------|
-| **Quebra** | Número do voo + número da ULD desembarcada |
-| **Entrega** | Tipo (Volume ou Lâmina) + ULD (opcional) + lista de AWBs |
-| **Lâmina** | Número da ULD + nome do cliente |
-| **Saída de Voo** | Número do voo |
-| **Peso** | Peso total movimentado no turno (kg) |
+| Aba | Dados registrados | Modelo Prisma |
+|-----|-------------------|---------------|
+| **Desembarque** | Número do voo (`AD####`) + ULD (`(PAG\|PAJ)#####(R7\|R9\|WD\|TOT\|TTL)`) | `Quebra` |
+| **Retira** | ULD opcional + lista de AWBs (`577-########`) + cliente. **Sem ULD = VOLUME, com ULD = LÂMINA** (inferido) | `Entrega` + `AWB` |
+| **Produção** | ULD + nome do cliente | `LaminaProduzida` |
+| **Volumetria** | Número do voo + **peso total do voo (kg)** | `SaidaVoo` (com `pesoKg`) |
+| **Contingente** | Quantidade de tripulantes do turno no dia. **1 registro por (dia, turno)** — relançar sobrescreve | `Contingente` (novo) |
+| **Importar Planilha** | Baixa template `.xlsx`, preenche na operação, faz upload — cria registros em lote | — |
+
+### Importação por planilha (operação)
+Workflow desenhado para uma planilha **viva no OneDrive/SharePoint**, preenchida pelos operadores ao longo do plantão e importada periodicamente pelo admin:
+
+1. Admin baixa o template `.xlsx` pelo site (gerado dinamicamente — o dropdown de "Usuario" contém os usernames reais do banco no momento do download)
+2. Operação preenche as 5 abas do template no Excel — dropdowns nativos limitam Turno e Usuario, formato de data e número são validados pelo Excel
+3. Admin faz upload pelo site → backend valida via **regex** (`AD####`, `(PAG|PAJ)#####(R7|R9|WD|TOT|TTL)`, `577-########`) + Zod
+4. **Best-effort por linha**: linhas válidas entram, inválidas voltam numa planilha com células em vermelho e coluna "Erro" preenchida
+5. Admin corrige a planilha (ou só as linhas com erro) e reimporta
 
 ### Histórico
 - Listagem paginada (20 por página) de todos os registros do usuário
-- Filtros por tipo de atividade e por período de datas
+- Filtros por tipo de atividade (Desembarque, Retira, Produção, Volumetria, Contingente — e Peso legado) e por período de datas
 
 ### Painel Admin *(acesso restrito a admins)*
 - **Aba Usuários:** listar todos os usuários, alterar role (operador ↔ admin), resetar senha
-- **Aba Registros:** visualizar todos os registros com filtros por tipo, usuário e período; deletar individualmente ou em lote (checkbox)
+- **Aba Registros:** visualizar todos os registros (incluindo Contingente) com filtros por tipo, usuário e período; deletar individualmente ou em lote (checkbox)
 
 ### Autenticação
 - Registro com geração automática de username (`nome.sobrenome`)
@@ -63,16 +75,17 @@ Realidade Operacional - TECAN/
 ├── backend/
 │   ├── prisma/
 │   │   ├── schema.prisma         Modelos: User, Quebra, Entrega, AWB,
-│   │   │                          LaminaProduzida, SaidaVoo, PesoMovimentado
+│   │   │                          LaminaProduzida, SaidaVoo (+pesoKg),
+│   │   │                          PesoMovimentado (legado), Contingente
 │   │   ├── seed.ts               Dados ficticios (jan-fev 2025)
 │   │   ├── create-admin.ts       Criar/atualizar usuario admin
 │   │   └── reset-password.ts     Reset de senha de emergencia
 │   ├── src/
 │   │   ├── routes/               auth, quebras, entregas, laminas,
 │   │   │                          saidas-voo, peso, dashboard, historico,
-│   │   │                          export, admin
+│   │   │                          export, admin, contingente, import
 │   │   ├── services/             authService, shiftService, dashboardService,
-│   │   │                          exportService
+│   │   │                          exportService, importService
 │   │   └── middleware/           auth (JWT guard), requireAdmin, errorHandler
 │   └── package.json
 └── frontend/
@@ -185,16 +198,21 @@ POST /auth/login                   Login
 POST /auth/refresh                 Renovar token
 
 # Registros (requerem JWT)
-POST /api/quebras                  Registrar desembarque de ULD
-POST /api/entregas                 Registrar entrega (Volume ou Lâmina + AWBs)
-POST /api/laminas-produzidas       Registrar lâmina montada
-POST /api/saidas-voo               Registrar saída de voo
-POST /api/peso                     Registrar peso movimentado
+POST /api/quebras                  Desembarque (voo + ULD)
+POST /api/entregas                 Retira (Volume/Lâmina inferido pela ULD + AWBs + cliente)
+POST /api/laminas-produzidas       Produção (ULD + cliente)
+POST /api/saidas-voo               Volumetria (voo + pesoKg opcional)
+POST /api/contingente              Contingente (tripulantes por turno × dia, upsert global)
+POST /api/atividades/peso          Peso legado (mantido para compat, desativado no frontend)
+
+# Importação por planilha
+GET  /api/import/template          Baixa template .xlsx (gerado dinamicamente com dropdowns)
+POST /api/import/excel             Upload de planilha preenchida (multipart, retorna resumo + erros)
 
 # Consultas
-GET  /api/dashboard/summary        KPIs e gráficos do período
-GET  /api/historico                Histórico paginado do usuário
-GET  /api/export/excel             Relatório Excel do período
+GET  /api/dashboard/summary        KPIs, gráficos e contingenteByDay do período
+GET  /api/historico                Histórico paginado (inclui Contingente)
+GET  /api/export/excel             Relatório Excel do período (com aba Contingente)
 GET  /api/export/pdf               Relatório PDF do período
 
 # Admin (requerem role admin)
@@ -282,6 +300,15 @@ Após atualizar a env var, fazer redeploy do projeto na Vercel.
 ---
 
 ## Changelog
+
+### v1.2 (2026-05-13)
+- **Terminologia alinhada com a operação**: Quebra → **Desembarque**, Entrega → **Retira**, Lâmina → **Produção**, Saída de Voo → **Volumetria**. Mudança aplicada em Dashboard, Registrar, Histórico, Admin e exportações
+- **Novo conceito CONTINGENTE**: registra a quantidade de tripulantes por turno × dia. Unique constraint global `(dia, shift)` — relançar sobrescreve. Dashboard ganhou tabela "Contingente × Dia × Turno"
+- **Volumetria unificada**: `SaidaVoo` ganhou campo opcional `pesoKg` — o peso agora fica vinculado ao voo. Dados legados de `PesoMovimentado` continuam visíveis no histórico e somam no KPI "Volumetria" para preservar continuidade
+- **Retira sem dropdown Volume/Lâmina**: o tipo é inferido pela ULD (vazia = VOLUME, preenchida = LAMINA) — consistente com a planilha
+- **Aba PESO removida do formulário** Registrar (dados antigos preservados, sem perda)
+- **Importação por planilha Excel**: nova aba "Importar Planilha" no Registrar. Template gerado dinamicamente com dropdowns nativos do Excel (Turno, Usuario, formato de data e número). Upload retorna resumo de criados/erros e uma planilha com células inválidas em vermelho
+- **Backend**: `Contingente` model novo, `pesoKg` em `SaidaVoo`, `@fastify/multipart` + `exceljs` adicionados, `importService` com validação regex (`AD####`, ULD, AWB) e best-effort por linha
 
 ### v1.1 (2026-05-12)
 - **Migração para Neon:** banco de dados PostgreSQL agora hospedado no Neon (serverless, com auto-suspend e pooling via PgBouncer)
