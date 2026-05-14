@@ -234,7 +234,7 @@ export function DashboardPage() {
             </div>
           </div>
 
-          {data.contingenteByDay.length > 0 && (
+          {(data.contingenteByDay?.length ?? 0) > 0 && (
             <div style={chartCardStyle}>
               <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '16px' }}>
                 <div>
@@ -253,7 +253,7 @@ export function DashboardPage() {
                     </tr>
                   </thead>
                   <tbody>
-                    {data.contingenteByDay.map((row) => {
+                    {(data.contingenteByDay ?? []).map((row) => {
                       const total = row.A + row.B + row.C;
                       return (
                         <tr key={row.day} style={{ borderBottom: '1px solid #162040' }}>
