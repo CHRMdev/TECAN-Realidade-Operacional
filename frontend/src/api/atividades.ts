@@ -33,6 +33,7 @@ export async function postSaidaVoo(data: {
   flightNumber: string;
   shift: 'A' | 'B' | 'C';
   pesoKg?: number;
+  direction?: 'CHEGADA' | 'SAIDA';
 }): Promise<{ success: true; saida: SaidaVoo }> {
   const res = await client.post('/api/saidas-voo', data);
   return res.data;

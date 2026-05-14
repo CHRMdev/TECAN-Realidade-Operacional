@@ -38,6 +38,42 @@ const numberInputStyle: React.CSSProperties = {
   outline: 'none',
 };
 
+// ─── Validações de padrão ─────────────────────────────────────────────────
+const VOO_REGEX = /^AD\d{4}$/;
+const ULD_REGEX = /^(PAG|PAJ)\d{4,5}(AD|WD|R7|R9|TOT|TTL)$/;
+const ULD_PRODUCAO_REGEX = /^((PAG|PAJ)\d{4,5}(AD|WD|R7|R9|TOT|TTL)|LM\d{5}|CAF\d{4})$/;
+
+function validateVoo(raw: string): string | null {
+  const v = raw.trim().toUpperCase();
+  if (!v) return 'Informe o número do voo';
+  if (VOO_REGEX.test(v)) return null;
+  if (!/^AD/.test(v)) return `"${raw}" inválido. Voo deve começar com AD (ex: AD1234)`;
+  return `"${raw}" inválido. Após AD devem vir exatamente 4 dígitos (ex: AD1234)`;
+}
+
+function validateUld(raw: string, allowProducao = false): string | null {
+  const v = raw.trim().toUpperCase();
+  if (!v) return 'Informe o número da ULD';
+  const re = allowProducao ? ULD_PRODUCAO_REGEX : ULD_REGEX;
+  if (re.test(v)) return null;
+
+  // Diagnóstico baseado no prefixo digitado
+  if (allowProducao) {
+    if (/^LM/.test(v)) return `"${raw}" inválido. LM deve ter exatamente 5 dígitos (ex: LM12345)`;
+    if (/^CAF/.test(v)) return `"${raw}" inválido. CAF deve ter exatamente 4 dígitos (ex: CAF1234)`;
+  }
+  if (/^PA[GJ]/.test(v)) {
+    if (!/^PA[GJ]\d{4,5}/.test(v)) {
+      return `"${raw}" inválido. Após PAG/PAJ devem vir 4 ou 5 dígitos`;
+    }
+    return `"${raw}" inválido. Sufixo deve ser AD, WD, R7, R9, TOT ou TTL (ex: PAG12345R7)`;
+  }
+  const exemplos = allowProducao
+    ? 'PAG12345R7, PAG1234AD, LM12345 ou CAF1234'
+    : 'PAG12345R7 ou PAG1234AD';
+  return `"${raw}" inválido. Esperado: ${exemplos}`;
+}
+
 // ─── DESEMBARQUE ──────────────────────────────────────────────────────────
 function DesembarqueTab({ shift }: { shift: 'A' | 'B' | 'C' }) {
   const { toast } = useToast();
@@ -47,6 +83,10 @@ function DesembarqueTab({ shift }: { shift: 'A' | 'B' | 'C' }) {
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
+    const vooErr = validateVoo(flightNumber);
+    if (vooErr) { toast({ type: 'error', title: 'Voo inválido', description: vooErr }); return; }
+    const uldErr = validateUld(uldNumber);
+    if (uldErr) { toast({ type: 'error', title: 'ULD inválida', description: uldErr }); return; }
     setLoading(true);
     try {
       await postQuebra({ flightNumber, uldNumber, shift });
@@ -61,7 +101,7 @@ function DesembarqueTab({ shift }: { shift: 'A' | 'B' | 'C' }) {
   return (
     <form onSubmit={handleSubmit} style={{ display: 'flex', flexDirection: 'column', gap: '16px', maxWidth: '480px' }}>
       <Input label="Número do Voo" placeholder="Ex: AD1234" value={flightNumber} onChange={(e) => setFlightNumber(e.target.value.toUpperCase())} required />
-      <Input label="Número da ULD" placeholder="Ex: PAG12345R7" value={uldNumber} onChange={(e) => setUldNumber(e.target.value.toUpperCase())} required />
+      <Input label="Número da ULD" placeholder="Ex: PAG12345R7 ou PAG1234AD" value={uldNumber} onChange={(e) => setUldNumber(e.target.value.toUpperCase())} required />
       <Button type="submit" loading={loading}>Registrar Desembarque</Button>
     </form>
   );
@@ -84,10 +124,14 @@ function RetiraTab({ shift }: { shift: 'A' | 'B' | 'C' }) {
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
+    const isLamina = uldNumber.trim().length > 0;
+    if (isLamina) {
+      const uldErr = validateUld(uldNumber);
+      if (uldErr) { toast({ type: 'error', title: 'ULD inválida', description: uldErr }); return; }
+    }
     if (!awbs.length) { toast({ type: 'error', title: 'Adicione ao menos 1 AWB' }); return; }
     if (!cliente.trim()) { toast({ type: 'error', title: 'Informe o cliente' }); return; }
     setLoading(true);
-    const isLamina = uldNumber.trim().length > 0;
     try {
       await postEntrega({
         deliveryType: isLamina ? 'LAMINA' : 'VOLUME',
@@ -115,7 +159,7 @@ function RetiraTab({ shift }: { shift: 'A' | 'B' | 'C' }) {
         </label>
         <input
           type="text"
-          placeholder="Ex: PAG12345R7 (deixe vazio para VOLUME)"
+          placeholder="Ex: PAG12345R7 ou PAG1234AD (vazio = VOLUME)"
           value={uldNumber}
           onChange={(e) => setUldNumber(e.target.value.toUpperCase())}
           style={numberInputStyle}
@@ -162,6 +206,9 @@ function ProducaoTab({ shift }: { shift: 'A' | 'B' | 'C' }) {
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
+    const uldErr = validateUld(uldNumber, true);
+    if (uldErr) { toast({ type: 'error', title: 'ULD/Cart inválido', description: uldErr }); return; }
+    if (!clientName.trim()) { toast({ type: 'error', title: 'Informe o cliente' }); return; }
     setLoading(true);
     try {
       await postLamina({ uldNumber, clientName, shift });
@@ -175,7 +222,7 @@ function ProducaoTab({ shift }: { shift: 'A' | 'B' | 'C' }) {
 
   return (
     <form onSubmit={handleSubmit} style={{ display: 'flex', flexDirection: 'column', gap: '16px', maxWidth: '480px' }}>
-      <Input label="Número da ULD Produzida" placeholder="Ex: PAG12345R7" value={uldNumber} onChange={(e) => setUldNumber(e.target.value.toUpperCase())} required />
+      <Input label="Número da ULD/Cart" placeholder="Ex: PAG12345R7, PAG1234AD, LM12345 ou CAF1234" value={uldNumber} onChange={(e) => setUldNumber(e.target.value.toUpperCase())} required />
       <Input label="Nome do Cliente" placeholder="Ex: LATAM Cargo" value={clientName} onChange={(e) => setClientName(e.target.value)} required />
       <Button type="submit" loading={loading}>Registrar Produção</Button>
     </form>
@@ -186,6 +233,7 @@ function ProducaoTab({ shift }: { shift: 'A' | 'B' | 'C' }) {
 function VolumetriaTab({ shift }: { shift: 'A' | 'B' | 'C' }) {
   const { user } = useAuth();
   const { toast } = useToast();
+  const [direction, setDirection] = useState<'SAIDA' | 'CHEGADA'>('SAIDA');
   const [flightNumber, setFlightNumber] = useState('');
   const [pesoKg, setPesoKg] = useState('');
   const [loading, setLoading] = useState(false);
@@ -199,8 +247,9 @@ function VolumetriaTab({ shift }: { shift: 'A' | 'B' | 'C' }) {
     }
     setLoading(true);
     try {
-      await postSaidaVoo({ flightNumber, shift, pesoKg: kg });
-      toast({ type: 'success', title: 'Volumetria registrada!', description: `Voo ${flightNumber} — ${kg} kg` });
+      await postSaidaVoo({ flightNumber, shift, pesoKg: kg, direction });
+      const label = direction === 'CHEGADA' ? 'Vôo recebido' : 'Vôo produzido';
+      toast({ type: 'success', title: `${label} registrado!`, description: `Voo ${flightNumber} — ${kg} kg` });
       setFlightNumber(''); setPesoKg('');
     } catch (err: unknown) {
       const msg = (err as { response?: { data?: { message?: string } } })?.response?.data?.message || 'Erro ao registrar';
@@ -208,8 +257,32 @@ function VolumetriaTab({ shift }: { shift: 'A' | 'B' | 'C' }) {
     } finally { setLoading(false); }
   }
 
+  const tabBtn = (active: boolean): React.CSSProperties => ({
+    flex: 1,
+    padding: '10px 12px',
+    borderRadius: '8px',
+    border: `1.5px solid ${active ? '#1a78d4' : '#1e3355'}`,
+    backgroundColor: active ? '#1a78d420' : '#0d1a30',
+    color: active ? '#e2eafc' : '#7a9bc4',
+    fontSize: '13px',
+    fontWeight: 600,
+    cursor: 'pointer',
+    transition: 'all 0.15s',
+  });
+
   return (
     <form onSubmit={handleSubmit} style={{ display: 'flex', flexDirection: 'column', gap: '16px', maxWidth: '480px' }}>
+      <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
+        <label style={{ fontSize: '13px', fontWeight: 600, color: '#7a9bc4' }}>Tipo</label>
+        <div style={{ display: 'flex', gap: '8px' }}>
+          <button type="button" style={tabBtn(direction === 'SAIDA')} onClick={() => setDirection('SAIDA')}>
+            Saída (vôo produzido)
+          </button>
+          <button type="button" style={tabBtn(direction === 'CHEGADA')} onClick={() => setDirection('CHEGADA')}>
+            Chegada (vôo recebido)
+          </button>
+        </div>
+      </div>
       <Input label="Número do Voo" placeholder="Ex: AD1234" value={flightNumber} onChange={(e) => setFlightNumber(e.target.value.toUpperCase())} required />
       <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
         <label style={{ fontSize: '13px', fontWeight: 600, color: '#7a9bc4' }}>Peso total do voo (kg)</label>

@@ -77,6 +77,7 @@ model SaidaVoo {
   shift        String
   flightNumber String
   pesoKg       Float?
+  direction    String   @default("SAIDA")
   createdAt    DateTime @default(now())
   @@index([userId])
   @@index([createdAt])

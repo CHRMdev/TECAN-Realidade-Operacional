@@ -16,15 +16,16 @@ interface Props {
 
 // Ordem idêntica à sequência dos KPI cards
 const BAR_SERIES = [
-  { key: 'laminas',          name: 'Lâminas Prod.',  color: '#1a78d4' },
-  { key: 'laminasEntregues', name: 'Lâm. Entregues', color: '#10b981' },
-  { key: 'quebras',          name: 'Desembarcadas',   color: '#e07050' },
-  { key: 'entregas',         name: 'Entregas',         color: '#f59e0b' },
-  { key: 'awbs',             name: 'AWBs',             color: '#6b9e8f' },
-  { key: 'saidas',           name: 'Saídas de Voo',  color: '#a78bfa' },
+  { key: 'quebras',          name: 'Desembarque',     color: '#e07050' },
+  { key: 'entregas',         name: 'Retiras',         color: '#f59e0b' },
+  { key: 'awbs',             name: 'AWBs',            color: '#6b9e8f' },
+  { key: 'laminas',          name: 'ULDs/Carts',      color: '#1a78d4' },
+  { key: 'saidasProduzidas', name: 'Vôos Produzidos', color: '#a78bfa' },
+  { key: 'saidasRecebidas',  name: 'Vôos Recebidos',  color: '#38bdf8' },
 ] as const;
 
 const PESO_COLOR = '#8b5cf6';
+const CONTINGENTE_COLOR = '#10b981';
 
 // Legenda customizada — renderiza na ordem exata (não alfabética)
 function CustomLegend() {
@@ -36,10 +37,13 @@ function CustomLegend() {
           <span style={{ color: '#4a6485', fontSize: '11px' }}>{s.name}</span>
         </div>
       ))}
-      {/* Peso: linha tracejada */}
       <div style={{ display: 'flex', alignItems: 'center', gap: '5px' }}>
         <div style={{ width: '16px', height: '2px', borderTop: `2px dashed ${PESO_COLOR}`, flexShrink: 0 }} />
         <span style={{ color: '#4a6485', fontSize: '11px' }}>Peso (kg) →</span>
+      </div>
+      <div style={{ display: 'flex', alignItems: 'center', gap: '5px' }}>
+        <div style={{ width: '16px', height: '2px', borderTop: `2px dotted ${CONTINGENTE_COLOR}`, flexShrink: 0 }} />
+        <span style={{ color: '#4a6485', fontSize: '11px' }}>Contingente →</span>
       </div>
     </div>
   );
@@ -60,6 +64,7 @@ const CustomTooltip = ({
   }).filter(Boolean) as Array<{ key: string; name: string; color: string; value: number }>;
 
   const pesoEntry = payload.find((p) => p.dataKey === 'pesoKg');
+  const contingEntry = payload.find((p) => p.dataKey === 'contingente');
 
   return (
     <div style={{
@@ -68,7 +73,7 @@ const CustomTooltip = ({
       borderRadius: '10px',
       padding: '10px 14px',
       boxShadow: '0 8px 24px rgba(0,0,0,0.5)',
-      minWidth: '170px',
+      minWidth: '180px',
     }}>
       <p style={{ color: '#5a7aa5', fontSize: '11px', fontWeight: 700, margin: '0 0 8px', textTransform: 'uppercase', letterSpacing: '0.06em' }}>
         {label}
@@ -80,15 +85,22 @@ const CustomTooltip = ({
           <span style={{ color: '#e2eafc', fontSize: '12px', fontWeight: 700 }}>{s.value}</span>
         </div>
       ))}
+      {(pesoEntry?.value || contingEntry?.value) && (
+        <div style={{ borderTop: '1px solid #1e3355', margin: '6px 0' }} />
+      )}
       {pesoEntry && pesoEntry.value > 0 && (
-        <>
-          <div style={{ borderTop: '1px solid #1e3355', margin: '6px 0' }} />
-          <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-            <div style={{ width: '7px', height: '7px', borderRadius: '50%', backgroundColor: PESO_COLOR, flexShrink: 0 }} />
-            <span style={{ color: '#7a9bc4', fontSize: '11px', flex: 1 }}>Peso</span>
-            <span style={{ color: '#e2eafc', fontSize: '12px', fontWeight: 700 }}>{pesoEntry.value.toLocaleString('pt-BR')} kg</span>
-          </div>
-        </>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '4px' }}>
+          <div style={{ width: '7px', height: '7px', borderRadius: '50%', backgroundColor: PESO_COLOR, flexShrink: 0 }} />
+          <span style={{ color: '#7a9bc4', fontSize: '11px', flex: 1 }}>Peso</span>
+          <span style={{ color: '#e2eafc', fontSize: '12px', fontWeight: 700 }}>{pesoEntry.value.toLocaleString('pt-BR')} kg</span>
+        </div>
+      )}
+      {contingEntry && contingEntry.value > 0 && (
+        <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+          <div style={{ width: '7px', height: '7px', borderRadius: '50%', backgroundColor: CONTINGENTE_COLOR, flexShrink: 0 }} />
+          <span style={{ color: '#7a9bc4', fontSize: '11px', flex: 1 }}>Contingente</span>
+          <span style={{ color: '#e2eafc', fontSize: '12px', fontWeight: 700 }}>{contingEntry.value} trip.</span>
+        </div>
       )}
     </div>
   );
@@ -107,8 +119,8 @@ export function BarChartDiario({ data }: Props) {
 
   return (
     <div>
-      <ResponsiveContainer width="100%" height={240}>
-        <ComposedChart data={formatted} margin={{ top: 4, right: 48, left: -20, bottom: 0 }} barCategoryGap="28%" barGap={1}>
+      <ResponsiveContainer width="100%" height={260}>
+        <ComposedChart data={formatted} margin={{ top: 4, right: 56, left: -20, bottom: 0 }} barCategoryGap="22%" barGap={1}>
           <CartesianGrid strokeDasharray="3 3" stroke="#1e3355" vertical={false} />
 
           {/* Eixo esquerdo: contagens */}
@@ -121,7 +133,7 @@ export function BarChartDiario({ data }: Props) {
             width={28}
           />
 
-          {/* Eixo direito: kg (escala independente) */}
+          {/* Eixo direito: kg / tripulantes (escala independente) */}
           <YAxis
             yAxisId="right"
             orientation="right"
@@ -129,7 +141,7 @@ export function BarChartDiario({ data }: Props) {
             axisLine={false}
             tickLine={false}
             allowDecimals={false}
-            width={40}
+            width={44}
             tickFormatter={(v) => v >= 1000 ? `${(v / 1000).toFixed(1)}t` : `${v}`}
           />
 
@@ -142,7 +154,7 @@ export function BarChartDiario({ data }: Props) {
 
           <Tooltip content={<CustomTooltip />} cursor={{ fill: '#ffffff05' }} />
 
-          {/* Barras — mesma ordem dos KPI cards */}
+          {/* Barras */}
           {BAR_SERIES.map((s) => (
             <Bar
               key={s.key}
@@ -151,11 +163,11 @@ export function BarChartDiario({ data }: Props) {
               name={s.name}
               fill={s.color}
               radius={[3, 3, 0, 0]}
-              maxBarSize={10}
+              maxBarSize={9}
             />
           ))}
 
-          {/* Peso como linha tracejada no eixo direito */}
+          {/* Peso — linha tracejada no eixo direito */}
           <Line
             yAxisId="right"
             type="monotone"
@@ -166,6 +178,19 @@ export function BarChartDiario({ data }: Props) {
             strokeDasharray="5 3"
             dot={{ r: 3, fill: PESO_COLOR, strokeWidth: 0 }}
             activeDot={{ r: 5, fill: PESO_COLOR }}
+          />
+
+          {/* Contingente — linha pontilhada no eixo direito */}
+          <Line
+            yAxisId="right"
+            type="monotone"
+            dataKey="contingente"
+            name="Contingente"
+            stroke={CONTINGENTE_COLOR}
+            strokeWidth={2}
+            strokeDasharray="2 4"
+            dot={{ r: 3, fill: CONTINGENTE_COLOR, strokeWidth: 0 }}
+            activeDot={{ r: 5, fill: CONTINGENTE_COLOR }}
           />
         </ComposedChart>
       </ResponsiveContainer>

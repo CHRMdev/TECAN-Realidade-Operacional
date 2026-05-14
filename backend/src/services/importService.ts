@@ -3,10 +3,17 @@ import { PrismaClient } from '@prisma/client';
 import { parse } from 'date-fns';
 
 const VOO = /^AD\d{4}$/;
-const ULD = /^(PAG|PAJ)\d{5}(R7|R9|WD|TOT|TTL)$/;
+const ULD = /^(PAG|PAJ)\d{4,5}(AD|WD|R7|R9|TOT|TTL)$/;
+// Produção aceita também identificadores de lâmina e carrinho: LM##### e CAF####
+const ULD_PRODUCAO = /^((PAG|PAJ)\d{4,5}(AD|WD|R7|R9|TOT|TTL)|LM\d{5}|CAF\d{4})$/;
 const AWB = /^577-\d{8}$/;
 
 const SHEET_KEYS = ['DESEMBARQUE', 'RETIRA', 'PRODUCAO', 'VOLUMETRIA', 'CONTINGENTE'] as const;
+
+// Linha onde os cabeçalhos das colunas ficam (row 1 = título grande mesclado da aba)
+const HEADER_ROW = 2;
+// Primeira linha de dados
+const DATA_START_ROW = 3;
 
 export interface ImportError {
   sheet: string;
@@ -34,6 +41,7 @@ export interface ImportResult {
 
 const HEADER_FILL = 'FF1A78D4';
 const HEADER_FONT_COLOR = 'FFFFFFFF';
+const TITLE_FILL = 'FF0B5394';
 
 function applyHeaderStyle(row: ExcelJS.Row) {
   row.eachCell((cell) => {
@@ -46,9 +54,40 @@ function applyHeaderStyle(row: ExcelJS.Row) {
   });
 }
 
+function colLetter(n: number): string {
+  // 1 -> A, 2 -> B, ... funciona para n <= 26 (suficiente para nossas planilhas)
+  return String.fromCharCode(64 + n);
+}
+
+function setupSheetWithTitle(
+  ws: ExcelJS.Worksheet,
+  title: string,
+  headers: { label: string; width: number }[]
+) {
+  headers.forEach((h, i) => {
+    ws.getColumn(i + 1).width = h.width;
+  });
+
+  const lastCol = colLetter(headers.length);
+  ws.mergeCells(`A1:${lastCol}1`);
+  const titleCell = ws.getCell('A1');
+  titleCell.value = title;
+  titleCell.font = { bold: true, size: 22, color: { argb: 'FFFFFFFF' } };
+  titleCell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: TITLE_FILL } };
+  titleCell.alignment = { vertical: 'middle', horizontal: 'center' };
+  ws.getRow(1).height = 36;
+
+  const headerRow = ws.getRow(HEADER_ROW);
+  headers.forEach((h, i) => {
+    headerRow.getCell(i + 1).value = h.label;
+  });
+  headerRow.height = 22;
+  applyHeaderStyle(headerRow);
+}
+
 function addDropdown(ws: ExcelJS.Worksheet, col: string, options: string[]) {
   const formula = `"${options.join(',')}"`;
-  for (let row = 2; row <= 1000; row++) {
+  for (let row = DATA_START_ROW; row <= 1000; row++) {
     ws.getCell(`${col}${row}`).dataValidation = {
       type: 'list',
       allowBlank: true,
@@ -62,13 +101,13 @@ function addDropdown(ws: ExcelJS.Worksheet, col: string, options: string[]) {
 }
 
 function addDateValidation(ws: ExcelJS.Worksheet, col: string) {
-  for (let row = 2; row <= 1000; row++) {
+  for (let row = DATA_START_ROW; row <= 1000; row++) {
     ws.getCell(`${col}${row}`).numFmt = 'dd/mm/yyyy';
   }
 }
 
 function addPositiveNumberValidation(ws: ExcelJS.Worksheet, col: string, isInteger: boolean) {
-  for (let row = 2; row <= 1000; row++) {
+  for (let row = DATA_START_ROW; row <= 1000; row++) {
     ws.getCell(`${col}${row}`).dataValidation = {
       type: isInteger ? 'whole' : 'decimal',
       operator: 'greaterThan',
@@ -99,19 +138,26 @@ export async function generateTemplate(users: string[]): Promise<Buffer> {
     '  4. Salve o arquivo (Ctrl+S).',
     '  5. Faça upload na aba "Importar Planilha" do site.',
     '',
+    'Cada aba tem uma faixa grande no topo com o NOME DA ABA — confira',
+    'sempre antes de digitar para garantir que está na aba correta.',
+    '',
     'Formato dos campos:',
     '  • Data → dd/mm/aaaa (use o calendário do Excel).',
     '  • Turno → A, B ou C (use o dropdown).',
     '  • Usuario → username do operador (use o dropdown).',
     '  • NumVoo → AD####  (ex: AD1234).',
-    '  • ULD → (PAG|PAJ)#####(R7|R9|WD|TOT|TTL)  (ex: PAG12345R7).',
+    '  • ULD → (PAG|PAJ)####(R7|R9|WD|TOT|TTL|AD)  4 ou 5 dígitos (ex: PAG1234AD, PAG12345R7).',
+    '  • PRODUCAO aceita também LM##### (5 dígitos) e CAF#### (4 dígitos).',
     '  • AWBs → 577-########  (ex: 577-12345678). Múltiplos, separados por ;',
     '  • PesoKg → número (use ponto, não vírgula: 1523.5).',
     '  • QtdTripulantes → número inteiro positivo.',
+    '  • Tipo (Volumetria) → Chegada ou Saida (use o dropdown).',
     '',
     'Regras especiais:',
     '  • Aba RETIRA: se "ULD" estiver vazia, será registrada como tipo VOLUME.',
     '    Se preenchida, será tipo LAMINA.',
+    '  • Aba VOLUMETRIA: o campo "Tipo" indica se é Chegada (vôo recebido)',
+    '    ou Saida (vôo produzido). Se ficar vazio, assume Saida.',
     '  • Aba CONTINGENTE: só pode existir 1 lançamento por (data, turno).',
     '    Reenviar sobrescreve o valor anterior.',
     '',
@@ -123,71 +169,68 @@ export async function generateTemplate(users: string[]): Promise<Buffer> {
 
   // ─── DESEMBARQUE ────────────────────────────────────────────────────
   const ws1 = wb.addWorksheet('DESEMBARQUE');
-  ws1.columns = [
-    { header: 'Data', key: 'data', width: 14 },
-    { header: 'Turno', key: 'turno', width: 9 },
-    { header: 'Usuario', key: 'usuario', width: 22 },
-    { header: 'NumVoo', key: 'voo', width: 12 },
-    { header: 'ULD', key: 'uld', width: 18 },
-  ];
-  applyHeaderStyle(ws1.getRow(1));
+  setupSheetWithTitle(ws1, 'DESEMBARQUE', [
+    { label: 'Data', width: 14 },
+    { label: 'Turno', width: 9 },
+    { label: 'Usuario', width: 22 },
+    { label: 'NumVoo', width: 12 },
+    { label: 'ULD', width: 18 },
+  ]);
   addDateValidation(ws1, 'A');
   addDropdown(ws1, 'B', ['A', 'B', 'C']);
   addDropdown(ws1, 'C', users);
 
   // ─── RETIRA ─────────────────────────────────────────────────────────
   const ws2 = wb.addWorksheet('RETIRA');
-  ws2.columns = [
-    { header: 'Data', key: 'data', width: 14 },
-    { header: 'Turno', key: 'turno', width: 9 },
-    { header: 'Usuario', key: 'usuario', width: 22 },
-    { header: 'ULD (opcional, se preencher = LAMINA)', key: 'uld', width: 38 },
-    { header: 'AWBs (separe por ;)', key: 'awbs', width: 36 },
-    { header: 'Cliente', key: 'cliente', width: 22 },
-  ];
-  applyHeaderStyle(ws2.getRow(1));
+  setupSheetWithTitle(ws2, 'RETIRA', [
+    { label: 'Data', width: 14 },
+    { label: 'Turno', width: 9 },
+    { label: 'Usuario', width: 22 },
+    { label: 'ULD (opcional, se preencher = LAMINA)', width: 38 },
+    { label: 'AWBs (separe por ;)', width: 36 },
+    { label: 'Cliente', width: 22 },
+  ]);
   addDateValidation(ws2, 'A');
   addDropdown(ws2, 'B', ['A', 'B', 'C']);
   addDropdown(ws2, 'C', users);
 
   // ─── PRODUCAO ──────────────────────────────────────────────────────
   const ws3 = wb.addWorksheet('PRODUCAO');
-  ws3.columns = [
-    { header: 'Data', key: 'data', width: 14 },
-    { header: 'Turno', key: 'turno', width: 9 },
-    { header: 'Usuario', key: 'usuario', width: 22 },
-    { header: 'ULD', key: 'uld', width: 18 },
-    { header: 'Cliente', key: 'cliente', width: 22 },
-  ];
-  applyHeaderStyle(ws3.getRow(1));
+  setupSheetWithTitle(ws3, 'PRODUCAO', [
+    { label: 'Data', width: 14 },
+    { label: 'Turno', width: 9 },
+    { label: 'Usuario', width: 22 },
+    { label: 'ULD', width: 18 },
+    { label: 'Cliente', width: 22 },
+  ]);
   addDateValidation(ws3, 'A');
   addDropdown(ws3, 'B', ['A', 'B', 'C']);
   addDropdown(ws3, 'C', users);
 
   // ─── VOLUMETRIA ────────────────────────────────────────────────────
   const ws4 = wb.addWorksheet('VOLUMETRIA');
-  ws4.columns = [
-    { header: 'Data', key: 'data', width: 14 },
-    { header: 'Turno', key: 'turno', width: 9 },
-    { header: 'Usuario', key: 'usuario', width: 22 },
-    { header: 'NumVoo', key: 'voo', width: 12 },
-    { header: 'PesoKg', key: 'peso', width: 12 },
-  ];
-  applyHeaderStyle(ws4.getRow(1));
+  setupSheetWithTitle(ws4, 'VOLUMETRIA', [
+    { label: 'Data', width: 14 },
+    { label: 'Turno', width: 9 },
+    { label: 'Usuario', width: 22 },
+    { label: 'Tipo', width: 12 },
+    { label: 'NumVoo', width: 12 },
+    { label: 'PesoKg', width: 12 },
+  ]);
   addDateValidation(ws4, 'A');
   addDropdown(ws4, 'B', ['A', 'B', 'C']);
   addDropdown(ws4, 'C', users);
-  addPositiveNumberValidation(ws4, 'E', false);
+  addDropdown(ws4, 'D', ['Chegada', 'Saida']);
+  addPositiveNumberValidation(ws4, 'F', false);
 
   // ─── CONTINGENTE ───────────────────────────────────────────────────
   const ws5 = wb.addWorksheet('CONTINGENTE');
-  ws5.columns = [
-    { header: 'Data', key: 'data', width: 14 },
-    { header: 'Turno', key: 'turno', width: 9 },
-    { header: 'Usuario', key: 'usuario', width: 22 },
-    { header: 'QtdTripulantes', key: 'qtd', width: 16 },
-  ];
-  applyHeaderStyle(ws5.getRow(1));
+  setupSheetWithTitle(ws5, 'CONTINGENTE', [
+    { label: 'Data', width: 14 },
+    { label: 'Turno', width: 9 },
+    { label: 'Usuario', width: 22 },
+    { label: 'QtdTripulantes', width: 16 },
+  ]);
   addDateValidation(ws5, 'A');
   addDropdown(ws5, 'B', ['A', 'B', 'C']);
   addDropdown(ws5, 'C', users);
@@ -258,6 +301,14 @@ function normalizeDia(d: Date): Date {
   return new Date(Date.UTC(d.getUTCFullYear(), d.getUTCMonth(), d.getUTCDate()));
 }
 
+function parseTipoToDirection(raw: string): 'CHEGADA' | 'SAIDA' | null {
+  const norm = raw.trim().toUpperCase()
+    .normalize('NFD').replace(/[̀-ͯ]/g, ''); // remove acentos
+  if (norm === '' || norm === 'SAIDA') return 'SAIDA';
+  if (norm === 'CHEGADA') return 'CHEGADA';
+  return null;
+}
+
 // ───────────────────────────────────────────────────────────────────────
 // Process import
 // ───────────────────────────────────────────────────────────────────────
@@ -301,7 +352,7 @@ export async function processImport(
   // ─── DESEMBARQUE ────────────────────────────────────────────────────
   const wsDes = wb.getWorksheet('DESEMBARQUE');
   if (wsDes) {
-    for (let r = 2; r <= wsDes.rowCount; r++) {
+    for (let r = DATA_START_ROW; r <= wsDes.rowCount; r++) {
       const row = wsDes.getRow(r);
       const values = [row.getCell(1).value, row.getCell(2).value, row.getCell(3).value, row.getCell(4).value, row.getCell(5).value];
       if (isRowEmpty(values)) continue;
@@ -320,7 +371,7 @@ export async function processImport(
       if (!VOO.test(voo)) { pushError('DESEMBARQUE', r, 'NumVoo', vooVal, 'NumVoo deve ser AD####'); continue; }
 
       const uld = cellToString(uldVal).toUpperCase();
-      if (!ULD.test(uld)) { pushError('DESEMBARQUE', r, 'ULD', uldVal, 'ULD deve ser (PAG|PAJ)#####(R7|R9|WD|TOT|TTL)'); continue; }
+      if (!ULD.test(uld)) { pushError('DESEMBARQUE', r, 'ULD', uldVal, 'ULD deve ser (PAG|PAJ)####(AD|WD|R7|R9|TOT|TTL) com 4 ou 5 dígitos'); continue; }
 
       try {
         await prisma.quebra.create({
@@ -336,7 +387,7 @@ export async function processImport(
   // ─── RETIRA ─────────────────────────────────────────────────────────
   const wsRet = wb.getWorksheet('RETIRA');
   if (wsRet) {
-    for (let r = 2; r <= wsRet.rowCount; r++) {
+    for (let r = DATA_START_ROW; r <= wsRet.rowCount; r++) {
       const row = wsRet.getRow(r);
       const values = [row.getCell(1).value, row.getCell(2).value, row.getCell(3).value, row.getCell(4).value, row.getCell(5).value, row.getCell(6).value];
       if (isRowEmpty(values)) continue;
@@ -389,7 +440,7 @@ export async function processImport(
   // ─── PRODUCAO ──────────────────────────────────────────────────────
   const wsProd = wb.getWorksheet('PRODUCAO');
   if (wsProd) {
-    for (let r = 2; r <= wsProd.rowCount; r++) {
+    for (let r = DATA_START_ROW; r <= wsProd.rowCount; r++) {
       const row = wsProd.getRow(r);
       const values = [row.getCell(1).value, row.getCell(2).value, row.getCell(3).value, row.getCell(4).value, row.getCell(5).value];
       if (isRowEmpty(values)) continue;
@@ -405,7 +456,11 @@ export async function processImport(
       if (!userId) continue;
 
       const uld = cellToString(uldVal).toUpperCase();
-      if (!uld) { pushError('PRODUCAO', r, 'ULD', uldVal, 'ULD obrigatória'); continue; }
+      if (!uld) { pushError('PRODUCAO', r, 'ULD', uldVal, 'ULD/Cart obrigatória'); continue; }
+      if (!ULD_PRODUCAO.test(uld)) {
+        pushError('PRODUCAO', r, 'ULD', uldVal, 'ULD/Cart deve ser (PAG|PAJ)####(AD|WD|R7|R9|TOT|TTL), LM##### ou CAF####');
+        continue;
+      }
 
       const cliente = cellToString(clienteVal);
       if (!cliente) { pushError('PRODUCAO', r, 'Cliente', clienteVal, 'Cliente obrigatório'); continue; }
@@ -422,14 +477,18 @@ export async function processImport(
   }
 
   // ─── VOLUMETRIA ────────────────────────────────────────────────────
+  // Colunas: Data | Turno | Usuario | Tipo | NumVoo | PesoKg
   const wsVol = wb.getWorksheet('VOLUMETRIA');
   if (wsVol) {
-    for (let r = 2; r <= wsVol.rowCount; r++) {
+    for (let r = DATA_START_ROW; r <= wsVol.rowCount; r++) {
       const row = wsVol.getRow(r);
-      const values = [row.getCell(1).value, row.getCell(2).value, row.getCell(3).value, row.getCell(4).value, row.getCell(5).value];
+      const values = [
+        row.getCell(1).value, row.getCell(2).value, row.getCell(3).value,
+        row.getCell(4).value, row.getCell(5).value, row.getCell(6).value,
+      ];
       if (isRowEmpty(values)) continue;
 
-      const [dataVal, turnoVal, usuarioVal, vooVal, pesoVal] = values;
+      const [dataVal, turnoVal, usuarioVal, tipoVal, vooVal, pesoVal] = values;
       const data = cellToDate(dataVal);
       if (!data) { pushError('VOLUMETRIA', r, 'Data', dataVal, 'Data inválida ou vazia'); continue; }
 
@@ -439,6 +498,12 @@ export async function processImport(
       const userId = resolveUserId(cellToString(usuarioVal), 'VOLUMETRIA', r);
       if (!userId) continue;
 
+      const direction = parseTipoToDirection(cellToString(tipoVal));
+      if (!direction) {
+        pushError('VOLUMETRIA', r, 'Tipo', tipoVal, 'Tipo deve ser Chegada ou Saida (vazio assume Saida)');
+        continue;
+      }
+
       const voo = cellToString(vooVal).toUpperCase();
       if (!VOO.test(voo)) { pushError('VOLUMETRIA', r, 'NumVoo', vooVal, 'NumVoo deve ser AD####'); continue; }
 
@@ -447,7 +512,7 @@ export async function processImport(
 
       try {
         await prisma.saidaVoo.create({
-          data: { userId, shift: turno, flightNumber: voo, pesoKg: peso, createdAt: data },
+          data: { userId, shift: turno, flightNumber: voo, pesoKg: peso, direction, createdAt: data },
         });
         result.created.volumetrias++;
       } catch (e) {
@@ -459,7 +524,7 @@ export async function processImport(
   // ─── CONTINGENTE ───────────────────────────────────────────────────
   const wsCon = wb.getWorksheet('CONTINGENTE');
   if (wsCon) {
-    for (let r = 2; r <= wsCon.rowCount; r++) {
+    for (let r = DATA_START_ROW; r <= wsCon.rowCount; r++) {
       const row = wsCon.getRow(r);
       const values = [row.getCell(1).value, row.getCell(2).value, row.getCell(3).value, row.getCell(4).value];
       if (isRowEmpty(values)) continue;
@@ -513,7 +578,7 @@ async function buildErrorReport(originalBuffer: Buffer, errors: ImportError[]): 
     DESEMBARQUE: { Data: 1, Turno: 2, Usuario: 3, NumVoo: 4, ULD: 5 },
     RETIRA: { Data: 1, Turno: 2, Usuario: 3, ULD: 4, AWBs: 5, Cliente: 6 },
     PRODUCAO: { Data: 1, Turno: 2, Usuario: 3, ULD: 4, Cliente: 5 },
-    VOLUMETRIA: { Data: 1, Turno: 2, Usuario: 3, NumVoo: 4, PesoKg: 5 },
+    VOLUMETRIA: { Data: 1, Turno: 2, Usuario: 3, Tipo: 4, NumVoo: 5, PesoKg: 6 },
     CONTINGENTE: { Data: 1, Turno: 2, Usuario: 3, QtdTripulantes: 4 },
   };
 
@@ -535,8 +600,8 @@ async function buildErrorReport(originalBuffer: Buffer, errors: ImportError[]): 
     const sheetErrors = errorsBySheet[sheetName] || [];
     const errorCol = (Object.keys(SHEET_FIELD_COL[sheetName]).length) + 1;
 
-    // Header "Erro"
-    const headerCell = ws.getCell(1, errorCol);
+    // Header "Erro" — fica na mesma linha dos demais headers (row 2)
+    const headerCell = ws.getCell(HEADER_ROW, errorCol);
     headerCell.value = 'Erro';
     headerCell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFEF4444' } };
     headerCell.font = { bold: true, color: { argb: 'FFFFFFFF' } };

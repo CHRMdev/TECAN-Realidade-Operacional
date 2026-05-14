@@ -47,6 +47,7 @@ export interface SaidaVoo {
   shift: string;
   flightNumber: string;
   pesoKg?: number | null;
+  direction?: 'CHEGADA' | 'SAIDA';
   createdAt: string;
 }
 
@@ -75,6 +76,8 @@ export interface DashboardSummaryData {
     totalAWBs: number;
     totalLaminas: number;
     totalSaidas: number;
+    totalSaidasProduzidas: number;
+    totalRecebimentos: number;
     totalPesoKg: number;
     totalVolumetriaKg: number;
     totalContingente: number;
@@ -86,6 +89,8 @@ export interface DashboardSummaryData {
     awbs: number;
     laminas: number;
     saidas: number;
+    saidasProduzidas: number;
+    saidasRecebidas: number;
     pesoKg: number;
     tripulantes: number;
   }>;
@@ -97,7 +102,10 @@ export interface DashboardSummaryData {
     entregas: number;
     awbs: number;
     saidas: number;
+    saidasProduzidas: number;
+    saidasRecebidas: number;
     pesoKg: number;
+    contingente: number;
   }>;
   contingenteByDay: Array<{
     day: string;

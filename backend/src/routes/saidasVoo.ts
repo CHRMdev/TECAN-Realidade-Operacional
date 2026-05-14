@@ -6,6 +6,7 @@ const createSchema = z.object({
   flightNumber: z.string().min(1),
   shift: z.enum(['A', 'B', 'C']),
   pesoKg: z.number().positive('Peso deve ser maior que zero').optional(),
+  direction: z.enum(['CHEGADA', 'SAIDA']).default('SAIDA'),
 });
 
 export async function saidasVooRoutes(app: FastifyInstance) {
@@ -19,6 +20,7 @@ export async function saidasVooRoutes(app: FastifyInstance) {
         shift,
         flightNumber: body.flightNumber,
         pesoKg: body.pesoKg,
+        direction: body.direction,
       },
       include: { user: { select: { username: true, firstName: true, lastName: true } } },
     });

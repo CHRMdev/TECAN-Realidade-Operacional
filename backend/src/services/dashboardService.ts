@@ -27,6 +27,12 @@ export async function getDashboardSummary(
   const totalVolumetriaKg = totalPesoLegacy + totalPesoVoos;
   const totalContingente = contingentes.reduce((sum, c) => sum + c.quantidadeTripulantes, 0);
 
+  const isSaida = (s: { direction?: string | null }) => (s.direction ?? 'SAIDA') === 'SAIDA';
+  const isChegada = (s: { direction?: string | null }) => s.direction === 'CHEGADA';
+
+  const saidasProduzidas = saidas.filter(isSaida);
+  const saidasRecebidas = saidas.filter(isChegada);
+
   // byShift
   const shifts = ['A', 'B', 'C'];
   const byShift = shifts.map((shift) => ({
@@ -36,6 +42,8 @@ export async function getDashboardSummary(
     awbs: entregas.filter((e) => e.shift === shift).reduce((sum, e) => sum + e.awbs.length, 0),
     laminas: laminas.filter((l) => l.shift === shift).length,
     saidas: saidas.filter((s) => s.shift === shift).length,
+    saidasProduzidas: saidasProduzidas.filter((s) => s.shift === shift).length,
+    saidasRecebidas: saidasRecebidas.filter((s) => s.shift === shift).length,
     pesoKg:
       pesos.filter((p) => p.shift === shift).reduce((sum, p) => sum + p.pesoKg, 0) +
       saidas.filter((s) => s.shift === shift).reduce((sum, s) => sum + (s.pesoKg ?? 0), 0),
@@ -52,18 +60,25 @@ export async function getDashboardSummary(
     ...contingentes.map((c) => format(c.dia, 'yyyy-MM-dd')),
   ]);
 
-  const byDay = Array.from(allDates).sort().map((day) => ({
-    day,
-    laminas: laminas.filter((l) => format(l.createdAt, 'yyyy-MM-dd') === day).length,
-    laminasEntregues: entregas.filter((e) => format(e.createdAt, 'yyyy-MM-dd') === day && e.deliveryType === 'LAMINA').length,
-    quebras: quebras.filter((q) => format(q.createdAt, 'yyyy-MM-dd') === day).length,
-    entregas: entregas.filter((e) => format(e.createdAt, 'yyyy-MM-dd') === day).length,
-    awbs: entregas.filter((e) => format(e.createdAt, 'yyyy-MM-dd') === day).reduce((sum, e) => sum + e.awbs.length, 0),
-    saidas: saidas.filter((s) => format(s.createdAt, 'yyyy-MM-dd') === day).length,
-    pesoKg:
-      pesos.filter((p) => format(p.createdAt, 'yyyy-MM-dd') === day).reduce((sum, p) => sum + p.pesoKg, 0) +
-      saidas.filter((s) => format(s.createdAt, 'yyyy-MM-dd') === day).reduce((sum, s) => sum + (s.pesoKg ?? 0), 0),
-  }));
+  const byDay = Array.from(allDates).sort().map((day) => {
+    const contingDay = contingentes.filter((c) => format(c.dia, 'yyyy-MM-dd') === day)
+      .reduce((sum, c) => sum + c.quantidadeTripulantes, 0);
+    return {
+      day,
+      laminas: laminas.filter((l) => format(l.createdAt, 'yyyy-MM-dd') === day).length,
+      laminasEntregues: entregas.filter((e) => format(e.createdAt, 'yyyy-MM-dd') === day && e.deliveryType === 'LAMINA').length,
+      quebras: quebras.filter((q) => format(q.createdAt, 'yyyy-MM-dd') === day).length,
+      entregas: entregas.filter((e) => format(e.createdAt, 'yyyy-MM-dd') === day).length,
+      awbs: entregas.filter((e) => format(e.createdAt, 'yyyy-MM-dd') === day).reduce((sum, e) => sum + e.awbs.length, 0),
+      saidas: saidas.filter((s) => format(s.createdAt, 'yyyy-MM-dd') === day).length,
+      saidasProduzidas: saidasProduzidas.filter((s) => format(s.createdAt, 'yyyy-MM-dd') === day).length,
+      saidasRecebidas: saidasRecebidas.filter((s) => format(s.createdAt, 'yyyy-MM-dd') === day).length,
+      pesoKg:
+        pesos.filter((p) => format(p.createdAt, 'yyyy-MM-dd') === day).reduce((sum, p) => sum + p.pesoKg, 0) +
+        saidas.filter((s) => format(s.createdAt, 'yyyy-MM-dd') === day).reduce((sum, s) => sum + (s.pesoKg ?? 0), 0),
+      contingente: contingDay,
+    };
+  });
 
   const contingenteByDay = Array.from(
     contingentes.reduce<Map<string, { day: string; A: number; B: number; C: number }>>((acc, c) => {
@@ -85,6 +100,8 @@ export async function getDashboardSummary(
       totalAWBs,
       totalLaminas: laminas.length,
       totalSaidas: saidas.length,
+      totalSaidasProduzidas: saidasProduzidas.length,
+      totalRecebimentos: saidasRecebidas.length,
       totalPesoKg: totalVolumetriaKg,
       totalVolumetriaKg,
       totalContingente,

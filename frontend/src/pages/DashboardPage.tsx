@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { Layers, PackageOpen, Truck, FileText, Download, Scale, Calendar, TrendingUp, PlaneTakeoff, Users } from 'lucide-react';
+import { Layers, PackageOpen, Truck, FileText, Download, Scale, Calendar, TrendingUp, PlaneTakeoff, PlaneLanding } from 'lucide-react';
 import { getSummary } from '../api/dashboard';
 import { downloadExcel, downloadPdf } from '../api/export';
 import type { DashboardSummaryData } from '../types';
@@ -182,55 +182,95 @@ export function DashboardPage() {
                    mesmo em viewports estreitas (scroll horizontal como fallback). */
                 gridTemplateColumns: 'repeat(7, minmax(0, 1fr))',
                 gap: '10px',
-                minWidth: '840px',
+                minWidth: '880px',
               }}>
                 <KpiCard label="Desembarque" value={data.summary.totalQuebras} icon={PackageOpen} accentColor="#e07050" delay={0} />
-                <KpiCard label="Retira" value={data.summary.totalEntregas} icon={Truck} accentColor="#f59e0b" delay={0.05} />
+                <KpiCard label="Retiras" value={data.summary.totalEntregas} icon={Truck} accentColor="#f59e0b" delay={0.05} />
                 <KpiCard label="AWBs" value={data.summary.totalAWBs} icon={FileText} accentColor="#6b9e8f" delay={0.1} />
-                <KpiCard label="Produção" value={data.summary.totalLaminas} icon={Layers} accentColor="#1a78d4" delay={0.15} />
-                <KpiCard label="Saídas de Voo" value={data.summary.totalSaidas} icon={PlaneTakeoff} accentColor="#a78bfa" delay={0.2} />
+                <KpiCard label="ULDs/Carts" value={data.summary.totalLaminas} icon={Layers} accentColor="#1a78d4" delay={0.15} />
                 <KpiCard
-                  label="Volumetria"
-                  value={Math.round(data.summary.totalVolumetriaKg)}
-                  icon={Scale}
-                  accentColor="#8b5cf6"
-                  delay={0.25}
-                  suffix="kg"
+                  label="Vôos Produzidos"
+                  value={data.summary.totalSaidasProduzidas ?? data.summary.totalSaidas ?? 0}
+                  icon={PlaneTakeoff}
+                  accentColor="#a78bfa"
+                  delay={0.2}
                 />
                 <KpiCard
-                  label="Contingente"
-                  value={data.summary.totalContingente}
-                  icon={Users}
-                  accentColor="#10b981"
+                  label="Vôos Recebidos"
+                  value={data.summary.totalRecebimentos ?? 0}
+                  icon={PlaneLanding}
+                  accentColor="#38bdf8"
+                  delay={0.25}
+                />
+                <KpiCard
+                  label="Peso Movimentado"
+                  value={Math.round(data.summary.totalVolumetriaKg ?? 0)}
+                  icon={Scale}
+                  accentColor="#8b5cf6"
                   delay={0.3}
-                  suffix="trip."
+                  suffix="kg"
                 />
               </div>
             </div>
           </div>
 
-          {/* Gráficos */}
-          <div style={{ display: 'grid', gridTemplateColumns: '2fr 1fr', gap: '16px' }}>
+          {/* Gráfico de barras — full width */}
+          <div style={chartCardStyle}>
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '20px' }}>
+              <div>
+                <p style={{ color: '#e2eafc', fontSize: '14px', fontWeight: 700, margin: 0 }}>Atividade por Dia</p>
+                <p style={{ color: '#4a6485', fontSize: '11px', margin: '3px 0 0' }}>Desembarque, retiras, AWBs, ULDs/Carts, vôos produzidos, vôos recebidos, peso e contingente</p>
+              </div>
+              <div style={{ width: '3px', height: '28px', borderRadius: '2px', backgroundColor: '#1a78d4' }} />
+            </div>
+            <BarChartDiario data={data.byDay} />
+          </div>
+
+          {/* 3 donuts por turno */}
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '16px' }}>
             <div style={chartCardStyle}>
-              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '20px' }}>
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '16px' }}>
                 <div>
-                  <p style={{ color: '#e2eafc', fontSize: '14px', fontWeight: 700, margin: 0 }}>Atividade por Dia</p>
-                  <p style={{ color: '#4a6485', fontSize: '11px', margin: '3px 0 0' }}>Produção, desembarque, retira e AWBs</p>
+                  <p style={{ color: '#e2eafc', fontSize: '14px', fontWeight: 700, margin: 0 }}>ULDs/Carts por Turno</p>
+                  <p style={{ color: '#4a6485', fontSize: '11px', margin: '3px 0 0' }}>Distribuição A / B / C</p>
                 </div>
                 <div style={{ width: '3px', height: '28px', borderRadius: '2px', backgroundColor: '#1a78d4' }} />
               </div>
-              <BarChartDiario data={data.byDay} />
+              <DonutTurnos data={data.byShift} valueKey="laminas" centerLabel="ULDs/Carts" unitLabel="ULDs/carts" />
             </div>
 
             <div style={chartCardStyle}>
               <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '16px' }}>
                 <div>
-                  <p style={{ color: '#e2eafc', fontSize: '14px', fontWeight: 700, margin: 0 }}>Produção por Turno</p>
+                  <p style={{ color: '#e2eafc', fontSize: '14px', fontWeight: 700, margin: 0 }}>Desembarque por Turno</p>
                   <p style={{ color: '#4a6485', fontSize: '11px', margin: '3px 0 0' }}>Distribuição A / B / C</p>
                 </div>
                 <div style={{ width: '3px', height: '28px', borderRadius: '2px', backgroundColor: '#e07050' }} />
               </div>
-              <DonutTurnos data={data.byShift} />
+              <DonutTurnos
+                data={data.byShift}
+                valueKey="quebras"
+                centerLabel="Desembarque"
+                unitLabel="desembarques"
+                colors={['#e07050', '#f59e0b', '#1a78d4']}
+              />
+            </div>
+
+            <div style={chartCardStyle}>
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '16px' }}>
+                <div>
+                  <p style={{ color: '#e2eafc', fontSize: '14px', fontWeight: 700, margin: 0 }}>Retiras por Turno</p>
+                  <p style={{ color: '#4a6485', fontSize: '11px', margin: '3px 0 0' }}>Distribuição A / B / C</p>
+                </div>
+                <div style={{ width: '3px', height: '28px', borderRadius: '2px', backgroundColor: '#f59e0b' }} />
+              </div>
+              <DonutTurnos
+                data={data.byShift}
+                valueKey="entregas"
+                centerLabel="Retiras"
+                unitLabel="retiras"
+                colors={['#f59e0b', '#1a78d4', '#e07050']}
+              />
             </div>
           </div>
 
